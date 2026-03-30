@@ -1,0 +1,2033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VG-800 Editor</title>
+<style>
+:root {
+  --bg: #141414;
+  --surface: #1e1e1e;
+  --surface2: #282828;
+  --surface3: #323232;
+  --border: #3c3c3c;
+  --text: #d4d4d4;
+  --muted: #777;
+  --accent: #4a9eff;
+  --green: #4ec94e;
+  --red: #e05555;
+  --yellow: #e0b040;
+  --orange: #e07840;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font: 13px/1.4 'Segoe UI', system-ui, sans-serif; }
+a { color: var(--accent); }
+
+/* Header */
+#header {
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+#header h1 { font-size: 16px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.midi-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+select, input[type=number], input[type=text] {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 3px; padding: 3px 6px; font-size: 12px; height: 26px;
+}
+select { min-width: 140px; }
+input[type=number] { width: 56px; }
+button {
+  background: var(--surface3); color: var(--text); border: 1px solid var(--border);
+  border-radius: 3px; padding: 3px 10px; font-size: 12px; cursor: pointer; height: 26px;
+}
+button:hover { background: var(--surface2); border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.primary:hover { opacity: 0.85; }
+#status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+#status-dot.connected { background: var(--green); }
+#status-dot.error { background: var(--red); }
+#status-text { font-size: 11px; color: var(--muted); }
+.label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* Tabs */
+#tab-bar {
+  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto; flex-shrink: 0;
+}
+.tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--muted); padding: 8px 14px; cursor: pointer; font-size: 12px;
+  white-space: nowrap; transition: color 0.15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Layout */
+#app { display: flex; flex-direction: column; height: 100vh; }
+#content { flex: 1; overflow: auto; padding: 12px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Section */
+.section {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 4px;
+  margin-bottom: 10px;
+}
+.section-header {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-bottom: 1px solid var(--border); cursor: pointer;
+  user-select: none;
+}
+.section-header:hover { background: var(--surface2); }
+.section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.section-body { padding: 10px; }
+.section.collapsed .section-body { display: none; }
+.collapse-icon { margin-left: auto; color: var(--muted); font-size: 10px; }
+.section-badge { font-size: 10px; color: var(--muted); background: var(--surface3); padding: 1px 5px; border-radius: 2px; }
+
+/* Read/loading */
+.read-btn { font-size: 11px; padding: 2px 8px; height: 20px; margin-left: auto; }
+.read-btn.loading { opacity: 0.5; pointer-events: none; }
+.loading-msg { color: var(--muted); font-size: 11px; padding: 8px; }
+.error-msg { color: var(--red); font-size: 11px; padding: 8px; }
+
+/* Params grid */
+.params-grid {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-start; padding: 4px 0;
+}
+.params-grid.wide, .params-grid.narrow { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-start; }
+.param-row {
+  display: flex; flex-direction: column; align-items: center; width: 52px;
+}
+.param-row.wide-ctrl {
+  width: auto; min-width: 110px; max-width: 220px; align-items: flex-start;
+}
+.param-label {
+  font-size: 10px; color: var(--muted); text-align: center; line-height: 1.2;
+  max-width: 52px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; word-break: break-word; cursor: default;
+}
+.param-row.wide-ctrl .param-label { max-width: none; white-space: normal; margin-bottom: 3px; }
+.param-control { display: flex; align-items: center; gap: 4px; }
+
+/* Knob */
+.knob-wrap { cursor: ns-resize; user-select: none; touch-action: none; display: flex; flex-direction: column; align-items: center; }
+.knob-track { stroke: var(--surface3); fill: none; stroke-width: 3; stroke-linecap: round; }
+.knob-fill  { stroke: var(--accent);   fill: none; stroke-width: 3; stroke-linecap: round; }
+.knob-dot   { fill: #fff; }
+.knob-val   { font-size: 10px; color: var(--text); text-align: center; margin-top: 1px; min-width: 28px; }
+select.param-select {
+  width: 100%; min-width: 0; font-size: 11px; padding: 2px 4px; height: 22px;
+}
+.toggle-btn {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  font-size: 12px; padding: 2px 8px; border-radius: 3px;
+  background: var(--surface3); border: 1px solid var(--border);
+  user-select: none;
+}
+.toggle-btn.on { background: #1a3a1a; border-color: var(--green); color: var(--green); }
+.toggle-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.toggle-btn.on .dot { background: var(--green); }
+input[type=text].name-input { width: 100%; font-family: monospace; font-size: 12px; }
+
+/* Two-column layout within a section */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* Patch overview */
+.patch-name-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.patch-name-display {
+  font-size: 20px; font-weight: 700; color: var(--accent);
+  font-family: monospace; letter-spacing: 2px;
+  background: var(--surface2); padding: 4px 10px; border-radius: 3px;
+  min-width: 180px; border: 1px solid var(--border);
+}
+.memory-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 4px;
+}
+.memory-btn {
+  font-size: 10px; padding: 3px 4px; height: auto; text-align: left; line-height: 1.3;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.memory-btn.current { border-color: var(--accent); color: var(--accent); }
+
+/* FX type selector */
+.fx-slot { margin-bottom: 12px; }
+.fx-slot-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fx-slot-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+
+/* Chain visual */
+.chain-visual {
+  display: flex; flex-direction: column; gap: 4px; padding: 8px;
+  background: var(--surface2); border-radius: 3px; margin-bottom: 8px;
+}
+.chain-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.chain-row-label { color: var(--muted); font-size: 10px; min-width: 16px; }
+.chain-block {
+  background: var(--surface3); border: 1px solid var(--border); border-radius: 3px;
+  padding: 3px 7px; font-size: 11px; white-space: nowrap;
+}
+.chain-arrow { color: var(--muted); font-size: 10px; }
+.chain-split { color: var(--yellow); font-weight: bold; }
+.chain-merge { color: #7ec8e3; font-weight: bold; }
+.chain-mixer { color: var(--green); font-weight: bold; }
+.chain-block[draggable="true"] { cursor: grab; user-select: none; }
+.chain-block.drag-src { opacity: 0.35; }
+.chain-block.drag-over-left  { border-left:  3px solid var(--accent); }
+.chain-block.drag-over-right { border-right: 3px solid var(--accent); }
+.chain-block.chain-off { opacity: 0.3; }
+.chain-block.chain-selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+#chain-selected-params { margin-top: 6px; }
+#chain-selected-params .params-header { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+
+/* Control assignments table */
+.ctrl-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ctrl-table th { font-size: 10px; color: var(--muted); text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px; }
+.ctrl-table td { padding: 3px 6px; border-bottom: 1px solid var(--surface3); vertical-align: middle; }
+.ctrl-table td:first-child { font-size: 11px; color: var(--muted); white-space: nowrap; width: 80px; font-weight: 600; }
+.ctrl-table .section-divider td { background: var(--surface2); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 8px; }
+.ctrl-table select { width: 100%; }
+.ctrl-table .mode-cell { width: 90px; }
+
+/* Log */
+#log {
+  position: fixed; bottom: 0; right: 0; width: 360px; max-height: 150px;
+  background: rgba(0,0,0,0.9); border: 1px solid var(--border); border-radius: 4px 0 0 0;
+  padding: 6px; overflow-y: auto; font: 10px/1.4 monospace; color: var(--muted);
+  z-index: 100; display: none;
+}
+#log.visible { display: block; }
+#log-toggle {
+  position: fixed; bottom: 0; right: 0; font-size: 10px; padding: 2px 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px 0 0 0; cursor: pointer; z-index: 101;
+}
+.log-tx { color: #5a9; }
+.log-rx { color: #59a; }
+.log-err { color: var(--red); }
+.log-info { color: var(--muted); }
+
+/* Sub-tabs */
+.sub-tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.sub-tab { font-size: 11px; padding: 3px 10px; border-radius: 3px; }
+.sub-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* Persistent panels (always visible, above tabs) */
+#persistent-panels { flex-shrink: 0; border-bottom: 1px solid var(--border); }
+#persistent-panels .section { border-radius: 0; border-left: none; border-right: none; border-top: none; margin: 0; }
+#persistent-panels .section + .section { border-top: 1px solid var(--border); }
+#patch-name-header { font-size: 11px; color: var(--text); margin-left: 8px; font-weight: normal; font-family: monospace; }
+#current-slot-label { font-size: 11px; color: var(--muted); margin-left: 8px; font-weight: normal; }
+#dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: #f0a030; display: inline-block; margin-left: 4px; vertical-align: middle; visibility: hidden; }
+#dirty-dot.dirty { visibility: visible; }
+button:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>VG-800</h1>
+    <div class="midi-row">
+      <span class="label">In:</span>
+      <select id="sel-in"><option value="">-- no MIDI --</option></select>
+      <span class="label">Out:</span>
+      <select id="sel-out"><option value="">-- no MIDI --</option></select>
+      <span class="label">Dev ID:</span>
+      <input type="number" id="device-id" value="16" min="0" max="127">
+      <span class="label">Ch:</span>
+      <input type="number" id="midi-ch" value="1" min="1" max="16" title="MIDI channel for PC/CC messages">
+      <button id="btn-identity">Identity</button>
+      <button onclick="refreshPorts && refreshPorts(); dumpMidiState && dumpMidiState()">Refresh</button>
+    </div>
+    <div class="midi-row" style="margin-left:auto">
+      <div id="status-dot"></div>
+      <span id="status-text">No MIDI</span>
+    </div>
+  </div>
+  <div id="midi-help" style="display:none; background:#2a1a1a; color:#f88; padding:10px 14px; font:12px/1.6 monospace; border-bottom:1px solid #5a2a2a; white-space:pre-wrap;"></div>
+
+  <!-- Always-visible panels -->
+  <div id="persistent-panels">
+    <div class="section collapsed" id="panel-current-patch">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">Current Patch</span>
+        <span id="patch-name-header"></span>
+        <span id="dirty-dot" title="Unsaved changes"></span>
+        <button class="read-btn" id="btn-read-patch" onclick="event.stopPropagation(); readPatch()">Read</button>
+        <button class="read-btn" id="btn-read-all" onclick="event.stopPropagation(); readAll()" style="margin-left:4px">Read Patch</button>
+        <button class="read-btn" id="btn-save-patch" onclick="event.stopPropagation(); savePatch()" style="margin-left:4px;background:#3a5a3a;color:#aef0ae" title="Save to user memory slot" disabled>Save Patch</button>
+        <span class="collapse-icon">▶</span>
+      </div>
+      <div class="section-body">
+        <div class="patch-name-row">
+          <span class="label">Name:</span>
+          <div class="patch-name-display" id="patch-name-display">----------------</div>
+          <input type="text" class="name-input" id="patch-name-input" maxlength="16" value="                " style="width:180px; font-size:14px">
+          <button id="btn-write-name">Write Name</button>
+        </div>
+        <div id="master-params" class="params-grid"></div>
+      </div>
+    </div>
+    <div class="section collapsed" id="section-user-memory">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="section-title">User Memory</span>
+        <span id="current-slot-label"></span>
+        <button class="read-btn" id="btn-read-memory-list" onclick="event.stopPropagation(); readMemoryList()" style="margin-left:4px">Scan</button>
+        <span class="collapse-icon">▶</span>
+      </div>
+      <div class="section-body">
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px">Click to recall (loads into temp memory). Reads name only — fast scan.</div>
+        <div class="memory-grid" id="memory-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-bar">
+    <button class="tab-btn active" data-tab="instrument">Instrument</button>
+    <button class="tab-btn" data-tab="amp">Amp</button>
+    <button class="tab-btn" data-tab="effects">Effects</button>
+    <button class="tab-btn" data-tab="fx">FX 1/2/3</button>
+    <button class="tab-btn" data-tab="chain">Chain / I/O</button>
+    <button class="tab-btn" data-tab="control">Control</button>
+    <button class="tab-btn" data-tab="system">System</button>
+  </div>
+
+  <div id="content">
+    <!-- Instrument Tab -->
+    <div class="tab-panel active" id="tab-instrument">
+      <div class="section">
+        <div class="section-header" style="cursor:default">
+          <span class="section-title">Instrument</span>
+          <button class="read-btn" id="btn-read-inst">Read</button>
+        </div>
+        <div class="section-body">
+          <div id="inst-common-params" class="params-grid narrow" style="margin-bottom:12px"></div>
+          <div class="sub-tabs" id="inst-type-tabs"></div>
+          <div id="inst-type-params" class="params-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Amp Tab -->
+    <div class="tab-panel" id="tab-amp">
+      <div class="two-col">
+        <div class="section" id="section-amp1">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Amplifier 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Amp1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body">
+            <div id="amp1-params" class="params-grid narrow"></div>
+          </div>
+        </div>
+        <div class="section" id="section-amp2">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Amplifier 2</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Amp2')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body">
+            <div id="amp2-params" class="params-grid narrow"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Effects Tab -->
+    <div class="tab-panel" id="tab-effects">
+      <div class="three-col">
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Compressor</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Compressor')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="comp-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Distortion</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Distortion')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="dist-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Equalizer 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('EQ1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="eq1-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Chorus</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Chorus')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="chorus-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Delay 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Delay1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="delay1-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Delay 2</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Delay2')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="delay2-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Reverb</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Reverb')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="reverb-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Noise Suppressor 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('NS1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="ns1-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Noise Suppressor 2</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('NS2')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="ns2-params" class="params-grid narrow"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FX 1/2/3 Tab -->
+    <div class="tab-panel" id="tab-fx">
+      <div id="fx-slots-container">
+        <div class="fx-slot" id="fx-slot-0">
+          <div class="fx-slot-header">
+            <span class="fx-slot-label">FX 1</span>
+            <div id="fx0-onoff"></div>
+            <select id="fx0-type" class="param-select" style="width:140px"></select>
+            <button class="read-btn" onclick="readFxSlot(0)">Read</button>
+          </div>
+          <div id="fx0-params" class="params-grid narrow"></div>
+        </div>
+        <hr style="border-color:var(--border); margin:12px 0">
+        <div class="fx-slot" id="fx-slot-1">
+          <div class="fx-slot-header">
+            <span class="fx-slot-label">FX 2</span>
+            <div id="fx1-onoff"></div>
+            <select id="fx1-type" class="param-select" style="width:140px"></select>
+            <button class="read-btn" onclick="readFxSlot(1)">Read</button>
+          </div>
+          <div id="fx1-params" class="params-grid narrow"></div>
+        </div>
+        <hr style="border-color:var(--border); margin:12px 0">
+        <div class="fx-slot" id="fx-slot-2">
+          <div class="fx-slot-header">
+            <span class="fx-slot-label">FX 3</span>
+            <div id="fx2-onoff"></div>
+            <select id="fx2-type" class="param-select" style="width:140px"></select>
+            <button class="read-btn" onclick="readFxSlot(2)">Read</button>
+          </div>
+          <div id="fx2-params" class="params-grid narrow"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chain / I/O Tab -->
+    <div class="tab-panel" id="tab-chain">
+      <div class="section">
+        <div class="section-header" style="cursor:default">
+          <span class="section-title">Signal Chain</span>
+          <button class="read-btn" onclick="readSection('Chain')">Read</button>
+        </div>
+        <div class="section-body">
+          <div class="chain-visual" id="chain-visual"></div>
+          <div id="chain-selected-params"></div>
+        </div>
+      </div>
+      <div class="three-col">
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Mixer</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Mixer')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="mixer-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Foot Volume 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('FV1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="fv1-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Foot Volume 2</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('FV2')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="fv2-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Send/Return</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('SendReturn')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="sr-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Divider</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('Divider')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="divider-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Normal Input</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('NormalInput')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="ni-params" class="params-grid narrow"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Tab -->
+    <div class="tab-panel" id="tab-control">
+      <div class="section">
+        <div class="section-header" style="cursor:default">
+          <span class="section-title">Control Assignments</span>
+          <button class="read-btn" onclick="readControlAll()">Read</button>
+        </div>
+        <div class="section-body">
+          <div id="ctrl-table-container"><div class="loading-msg">Not loaded — press Read</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Tab -->
+    <div class="tab-panel" id="tab-system">
+      <div class="two-col">
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Global EQ Common</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('GlobalEQCommon')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="geqc-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Global EQ 1</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('GlobalEQ1')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="geq1-params" class="params-grid narrow"></div></div>
+        </div>
+        <div class="section">
+          <div class="section-header" onclick="toggleSection(this)">
+            <span class="section-title">Output Select</span>
+            <button class="read-btn" onclick="event.stopPropagation(); readSection('OutputSelect')">Read</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-body"><div id="outsel-params" class="params-grid narrow"></div></div>
+        </div>
+      </div>
+    </div>
+  </div><!-- #content -->
+</div><!-- #app -->
+
+<button id="log-toggle" onclick="toggleLog()">Log</button>
+<div id="log"></div>
+
+<script>
+// ============================================================
+// BLOCK DATA (from VG-800 MIDI Implementation spec)
+// ============================================================
+const BLOCKS = {
+  "Master":{"size":29,"params":[{"offset":0,"name":"NAME","min":32,"max":126},{"offset":1,"name":"NAME","min":32,"max":126},{"offset":2,"name":"NAME","min":32,"max":126},{"offset":3,"name":"NAME","min":32,"max":126},{"offset":4,"name":"NAME","min":32,"max":126},{"offset":5,"name":"NAME","min":32,"max":126},{"offset":6,"name":"NAME","min":32,"max":126},{"offset":7,"name":"NAME","min":32,"max":126},{"offset":8,"name":"NAME","min":32,"max":126},{"offset":9,"name":"NAME","min":32,"max":126},{"offset":10,"name":"NAME","min":32,"max":126},{"offset":11,"name":"NAME","min":32,"max":126},{"offset":12,"name":"NAME","min":32,"max":126},{"offset":13,"name":"NAME","min":32,"max":126},{"offset":14,"name":"NAME","min":32,"max":126},{"offset":15,"name":"NAME","min":32,"max":126},{"offset":17,"name":"LEVEL","min":0,"max":200,"labels":"0 - 200"},{"offset":19,"name":"BPM","min":40,"max":250,"labels":"40 - 250"},{"offset":20,"name":"KEY","min":0,"max":11,"labels":"C(Am), Db(Bbm), D(Bm), Eb(Cm), E(C#m), F(Dm),, F#(D#m), G(Em), Ab(Fm), A(F#m), Bb(Gm), B(G#m)"},{"offset":21,"name":"BPM HOLD","min":0,"max":1,"labels":"OFF, ON"},{"offset":22,"name":"GK SET","min":0,"max":10,"labels":"SYSTEM, SET1, SET2, SET3, SET4, SET5, SET6, SET7, SET8, SET9, SET10"},{"offset":23,"name":"GK AUDIO MODE","min":0,"max":4,"labels":"SYSTEM, OFF, MIX, OUT, THRU"},{"offset":25,"name":"GK MIX LEVEL","min":0,"max":201},{"offset":27,"name":"GK OUT LEVEL","min":0,"max":201},{"offset":28,"name":"OUTPUT SELECT","min":0,"max":15,"labels":"SYSTEM, LIN/PHN, JC RTN, JC INPUT, KT212 RTN, KT212 IN, KT100 RTN, KT100 IN, CMB212 RT, CMB212 IN, CMB112 RT, CMB112 IN, STK412 RT, STK412 IN, BA TWEET, BA NO TWT"}]},
+  "InstCommonGuitar":{"size":2,"params":[{"offset":0,"name":"SW","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"INST TYPE","min":0,"max":5,"labels":"E.GUITAR, ACOUSTIC, DUAL GTR, E.BASS, VIO GTR, SYNTH"}]},
+  "ElectricGuitar":{"size":10,"params":[{"offset":0,"name":"TYPE","min":0,"max":11,"labels":"CLA-ST, MOD-ST, TE, LP, P-90, 335, L4, RICK, LIPS, WIDE RNG, BRGHT HUM, FRETLESS"},{"offset":1,"name":"PICKUP SELECT","min":0,"max":6,"labels":"REAR, R+C, CENTER, C+F, R+F, FRONT, ALL"},{"offset":2,"name":"VOLUME","min":0,"max":100},{"offset":3,"name":"TONE","min":0,"max":100},{"offset":4,"name":"TONE TYPE","min":0,"max":3,"labels":"MILD, STANDARD, BRIGHT1, BRIGHT2"},{"offset":5,"name":"SENS","min":0,"max":100},{"offset":6,"name":"DEPTH","min":0,"max":100},{"offset":7,"name":"ATTACK","min":0,"max":100},{"offset":8,"name":"RESONANCE","min":0,"max":100},{"offset":9,"name":"DIRECT MIX","min":0,"max":100}]},
+  "AcousticGuitar":{"size":12,"params":[{"offset":0,"name":"TYPE","min":0,"max":8,"labels":"MA28, TRP-0, GB45, GB SML, GLD 40, NYLON, RESO, BANJO, SITAR"},{"offset":1,"name":"BODY","min":0,"max":100},{"offset":2,"name":"ATTACK","min":0,"max":100},{"offset":3,"name":"PICKUP SELECT","min":0,"max":3,"labels":"PIEZO, PU, P+M MIX, MIC"},{"offset":4,"name":"SENS","min":0,"max":100},{"offset":5,"name":"DEPTH","min":0,"max":100},{"offset":6,"name":"SUSTAIN","min":0,"max":100},{"offset":7,"name":"RESONANCE","min":0,"max":100},{"offset":8,"name":"AMBIENCE","min":0,"max":100},{"offset":9,"name":"DIRECT MIX","min":0,"max":100},{"offset":10,"name":"BRITE SW","min":0,"max":1,"labels":"OFF, ON"},{"offset":11,"name":"POLY SENSE","min":0,"max":100}]},
+  "DualGuitarCommon":{"size":5,"params":[{"offset":0,"name":"MODE","min":0,"max":1,"labels":"NORMAL, ALTERNATE"},{"offset":1,"name":"GUITAR SELECT","min":0,"max":1,"labels":"GUITAR A, GUITAR B"},{"offset":2,"name":"A/B BALANCE","min":0,"max":100},{"offset":3,"name":"A:TYPE","min":0,"max":24,"labels":"E.GUITAR, ACOUSTIC, DUAL (GUITAR), DUAL (BASS), E.BASS, VIO GUITAR, VIO BASS, SYNTH (GUITAR), SYNTH (BASS)"},{"offset":4,"name":"B:TYPE","min":0,"max":24}]},
+  "Amplifier":{"size":20,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"TYPE","min":0,"max":31,"labels":"TRNSPRNT, NATURAL, BOUTIQUE, SUPREME, MAXIMUM, JUGGERNT, X-CRUNCH, X-HI GAIN, X-MODDED, X-ULTRA, X-OPTIMA, X-TITAN, JC-120, TWIN, DELUXE, TWEED, DIAMOND, BRIT STK, RECTI STK, MATCH, BG COMBO, ORNG STK, BGNR UB, NATRL BS, X-DRV BS, CONCERT, STUDIO BS, SILVER, CL BLUE, SOLID STK, FAT TUBE, DARK DRV"},{"offset":2,"name":"GAIN","min":0,"max":120},{"offset":3,"name":"SAG","min":0,"max":20},{"offset":4,"name":"RESONANCE","min":0,"max":20},{"offset":5,"name":"LEVEL","min":0,"max":100},{"offset":6,"name":"BASS","min":0,"max":100},{"offset":7,"name":"MIDDLE","min":0,"max":100},{"offset":8,"name":"TREBLE","min":0,"max":100},{"offset":9,"name":"PRESENCE","min":0,"max":100},{"offset":10,"name":"BRIGHT","min":0,"max":1,"labels":"OFF, ON"},{"offset":11,"name":"GAIN SW","min":0,"max":2,"labels":"LOW, MIDDLE, HIGH"},{"offset":12,"name":"SOLO SW","min":0,"max":1,"labels":"OFF, ON"},{"offset":13,"name":"SOLO LEVEL","min":0,"max":100},{"offset":14,"name":"SP TYPE","min":0,"max":29,"labels":"OFF, ORIGINAL, 1x8\", 1x10\", 1x12\", 2x12\", 4x10\", 4x12\", 8x12\", B1x15\", B1x18\", B2x15\", B4x10\", B8x10\", USER1, USER2, USER3, USER4, USER5, USER6, USER7, USER8, USER9, USER10, USER11, USER12, USER13, USER14, USER15, USER16"},{"offset":15,"name":"MIC TYPE","min":0,"max":8,"labels":"DYN57, DYN421, CND451, CND87, RBN121, BLEND A, BLEND B, BLEND C, FLAT"},{"offset":16,"name":"MIC DISTANCE","min":0,"max":2,"labels":"SHORT, MEDIUM, LONG"},{"offset":17,"name":"MIC POSITION","min":0,"max":10},{"offset":18,"name":"MIC LEVEL","min":0,"max":100},{"offset":19,"name":"DIRECT MIX","min":0,"max":100}]},
+  "Compressor":{"size":7,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"TYPE","min":0,"max":6,"labels":"BOSS CMP, Hi-BAND, LIGHT, D-COMP, ORANGE, FAT, MILD"},{"offset":2,"name":"SUSTAIN","min":0,"max":100},{"offset":3,"name":"ATTACK","min":0,"max":100},{"offset":4,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":5,"name":"DIRECT MIX","min":0,"max":100},{"offset":6,"name":"TONE","min":0,"max":100}]},
+  "Distortion":{"size":9,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"TYPE","min":0,"max":36,"labels":"MID BOOST, CLEAN BOOST, TREBLE BOOST, CRUNCH, NATURAL OD, WARM OD, FAT DS, LEAD DS, METAL DS, OCT FUZZ, BLUES OD, OD-1, TURBO OD, DIST, DISTORTION+, RAT, GUV'NOR, DST+, METAL ZONE, HEAVY METAL, MT-2, OS-2 (OD), OS-2 (DS), BOSS FZ, FUZZ, FUZZ FACE, OCTAVIA, MUFF PI, TRIANGLE MF, TONE BENDER, 70s FUZZ, BASS OD, B DISTORTION, B METAL, B LEAD, PLUG IN D, PLUG IN M"},{"offset":2,"name":"DRIVE","min":0,"max":120},{"offset":3,"name":"TONE","min":0,"max":100},{"offset":4,"name":"LEVEL","min":0,"max":100},{"offset":5,"name":"BOTTOM","min":0,"max":100},{"offset":6,"name":"DIRECT MIX","min":0,"max":100},{"offset":7,"name":"SOLO SW","min":0,"max":1,"labels":"OFF, ON"},{"offset":8,"name":"SOLO LEVEL","min":0,"max":100}]},
+  "Equalizer":{"size":12,"params":[{"offset":0,"name":"EQ SW","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"LOW CUT","min":0,"max":30,"labels":"FLAT, 20Hz, 25Hz, 31.5Hz, 40Hz, 50Hz, 63Hz, 80Hz, 100Hz, 125Hz, 160Hz, 200Hz, 250Hz, 315Hz, 400Hz, 500Hz, 630Hz, 800Hz, 1kHz, 1.25kHz, 1.6kHz, 2kHz, 2.5kHz, 3.15kHz, 4kHz, 5kHz, 6.3kHz, 8kHz, 10kHz, 12.5kHz, 16kHz"},{"offset":2,"name":"LOW GAIN","min":0,"max":40},{"offset":3,"name":"LO-MID FREQ","min":0,"max":29,"labels":"20Hz, 25Hz, 31.5Hz, 40Hz, 50Hz, 63Hz, 80Hz, 100Hz, 125Hz, 160Hz, 200Hz, 250Hz, 315Hz, 400Hz, 500Hz, 630Hz, 800Hz, 1kHz, 1.25kHz, 1.6kHz, 2kHz, 2.5kHz, 3.15kHz, 4kHz, 5kHz, 6.3kHz, 8kHz, 10kHz, 12.5kHz, 16kHz"},{"offset":4,"name":"LO-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":5,"name":"LO-MID GAIN","min":0,"max":40},{"offset":6,"name":"HI-MID FREQ","min":0,"max":29},{"offset":7,"name":"HI-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":8,"name":"HI-MID GAIN","min":0,"max":40},{"offset":9,"name":"HIGH GAIN","min":0,"max":40},{"offset":10,"name":"HIGH CUT","min":0,"max":30,"labels":"20Hz, 25Hz, 31.5Hz, 40Hz, 50Hz, 63Hz, 80Hz, 100Hz, 125Hz, 160Hz, 200Hz, 250Hz, 315Hz, 400Hz, 500Hz, 630Hz, 800Hz, 1kHz, 1.25kHz, 1.6kHz, 2kHz, 2.5kHz, 3.15kHz, 4kHz, 5kHz, 6.3kHz, 8kHz, 10kHz, 12.5kHz, 16kHz, FLAT"},{"offset":11,"name":"LEVEL","min":0,"max":100}]},
+  "Chorus":{"size":25,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"MODE","min":0,"max":3,"labels":"MONO, STEREO1, STEREO2, DUAL"},{"offset":2,"name":"RATE","min":0,"max":118},{"offset":3,"name":"DEPTH","min":0,"max":100},{"offset":4,"name":"PRE-DELAY","min":0,"max":80},{"offset":5,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":6,"name":"WAVE FORM","min":0,"max":1,"labels":"TRI, SINE"},{"offset":7,"name":"LOW CUT","min":0,"max":30},{"offset":8,"name":"HIGH CUT","min":0,"max":30},{"offset":9,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":24,"name":"OUTPUT MODE","min":0,"max":1,"labels":"MONO, STEREO"}]},
+  "Delay":{"size":12,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"TYPE","min":0,"max":3,"labels":"MONO, STEREO1, STEREO2, PAN"},{"offset":5,"name":"DELAY TIME","min":1,"max":2018,"labels":"1-2000ms, note values"},{"offset":6,"name":"FEEDBACK","min":0,"max":100},{"offset":7,"name":"EFFECT LEVEL","min":0,"max":120},{"offset":8,"name":"HIGH CUT","min":0,"max":30},{"offset":9,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":10,"name":"TAP TIME","min":0,"max":100},{"offset":11,"name":"CARRY OVER","min":0,"max":1,"labels":"OFF, ON"}]},
+  "Reverb":{"size":14,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"TYPE","min":0,"max":6,"labels":"AMBIENCE, ROOM, HALL1, HALL2, PLATE, SPRING, MOD"},{"offset":2,"name":"TIME","min":1,"max":100},{"offset":6,"name":"PRE-DELAY","min":0,"max":500},{"offset":7,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":8,"name":"LOW CUT","min":0,"max":30},{"offset":9,"name":"HIGH CUT","min":0,"max":30},{"offset":10,"name":"DENSITY","min":0,"max":9},{"offset":11,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":12,"name":"CARRY OVER","min":0,"max":1,"labels":"OFF, ON"},{"offset":13,"name":"SPRING SENS","min":0,"max":100}]},
+  "NoiseSuppressor":{"size":4,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"THRESHOLD","min":0,"max":100},{"offset":2,"name":"RELEASE","min":0,"max":100},{"offset":3,"name":"DETECT","min":0,"max":6,"labels":"GK+NRM IN, GK IN, NORM IN, NS INPUT, INST OUT, FV1 OUT, FV2 OUT"}]},
+  "FootVolume":{"size":13,"params":[{"offset":3,"name":"VOLUME MIN","min":0,"max":1000},{"offset":7,"name":"VOLUME MAX","min":0,"max":1000},{"offset":8,"name":"VOLUME CURVE","min":0,"max":3,"labels":"SLOW1, SLOW2, NORMAL, FAST"},{"offset":12,"name":"PEDAL POSITION","min":0,"max":1000}]},
+  "Divider":{"size":2,"params":[{"offset":0,"name":"MODE","min":0,"max":1,"labels":"MONO, STEREO"},{"offset":1,"name":"CH SELECT","min":0,"max":1,"labels":"CH1, CH2"}]},
+  "Mixer":{"size":3,"params":[{"offset":0,"name":"A/B BALANCE","min":0,"max":100},{"offset":1,"name":"A:PAN","min":0,"max":100},{"offset":2,"name":"B:PAN","min":0,"max":100}]},
+  "SendReturn":{"size":17,"params":[{"offset":0,"name":"STEREO LINK","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":2,"name":"MODE","min":0,"max":2,"labels":"NORMAL, DIR MIX, BRANCH"},{"offset":4,"name":"SEND LEVEL","min":0,"max":200},{"offset":6,"name":"RETURN LEVEL","min":0,"max":200},{"offset":7,"name":"ADJUST","min":0,"max":100},{"offset":8,"name":"PHASE","min":0,"max":1,"labels":"NORMAL, INVERT"}]},
+  "NormalInput":{"size":5,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"LEVEL","min":0,"max":200},{"offset":3,"name":"PHASE","min":0,"max":1,"labels":"NORMAL, INVERT"},{"offset":4,"name":"DELAY","min":0,"max":6,"labels":"0, 0.2ms, 0.4ms, 0.8ms, 1.6ms, 3.2ms, 6.4ms"}]},
+  "Chain":{"size":26,"params":[{"offset":0,"name":"ELEMENT 0","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":1,"name":"ELEMENT 1","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":2,"name":"ELEMENT 2","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":3,"name":"ELEMENT 3","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":4,"name":"ELEMENT 4","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":5,"name":"ELEMENT 5","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":6,"name":"ELEMENT 6","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":7,"name":"ELEMENT 7","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":8,"name":"ELEMENT 8","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":9,"name":"ELEMENT 9","min":0,"max":27,"labels":"FX1, FX2, FX3, AMP1, AMP2, CHORUS, COMP, DIST, EQ1, EQ2, DLY1, DLY2, REVERB, NS1, NS2, FV1, FV2, S/R1, S/R2, 2ND ROW, BALANCER1, 3RD ROW, BALANCER2, DIVIDER, SPLIT, MIXER"},{"offset":22,"name":"ELEMENT 22","min":0,"max":27},{"offset":23,"name":"ELEMENT 23","min":0,"max":27},{"offset":24,"name":"ELEMENT 24","min":0,"max":27},{"offset":25,"name":"ELEMENT 25","min":0,"max":27}]},
+  "ControlCtl":{"size":2,"params":[{"offset":0,"name":"CTL FUNCTION","min":0,"max":51,"labels":"OFF, MEMORY +1, MEMORY -1, BANK UP, BANK DOWN, LEVEL +10, LEVEL +20, LEVEL -10, LEVEL -20, BPM TAP, DLY1 TAP, DLY2 TAP, FX1 DLY TAP, FX2 DLY TAP, FX3 DLY TAP, TUNER, FX BYPASS, INST, INST NOR MIX, ALT TUNE, 12STR, STR BEND, PU SEL UP, PU SEL DOWN, DUAL SEL, NORMAL, FX1, FX2, FX3, CMP, DS, DS SOLO, AMP1, AMP1 SOLO, AMP2, AMP2 SOLO, EQ1, EQ2, NS1, NS2, DLY1, DLY2, CHO, REV, S/R1, S/R2, FX1 TRIGGER, FX2 TRIGGER, FX3 TRIGGER, DIV CH.SEL, MIDI START, MMC PLAY"},{"offset":1,"name":"CTL MODE","min":0,"max":1,"labels":"TOGGLE, MOMENT"}]},
+  "ControlExp":{"size":1,"params":[{"offset":0,"name":"EXP FUNCTION","min":0,"max":20,"labels":"OFF, FV1, FV2, FV1+TUNER, FV2+TUNER, FX1 PDL POS, FX2 PDL POS, FX3 PDL POS, MEM LVL100, MEM LVL200, INST LEVEL, INST CUTOFF, INST RESO, GTR VOL, DUAL A/B, NOR MIX100, NOR MIX200, STR BEND, MIXER A/B, BALANCE1 A/B, BALANCE2 A/B"}]},
+  "GlobalEQCommon":{"size":2,"params":[{"offset":0,"name":"SWITCH","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"EQ SET","min":0,"max":2,"labels":"EQ1, EQ2, EQ3"}]},
+  "GlobalEQ":{"size":11,"params":[{"offset":0,"name":"LOW CUT","min":0,"max":30,"labels":"FLAT, 20Hz, 25Hz, 31.5Hz, 40Hz, 50Hz, 63Hz, 80Hz, 100Hz, 125Hz, 160Hz, 200Hz, 250Hz, 315Hz, 400Hz, 500Hz, 630Hz, 800Hz, 1kHz, 1.25kHz, 1.6kHz, 2kHz, 2.5kHz, 3.15kHz, 4kHz, 5kHz, 6.3kHz, 8kHz, 10kHz, 12.5kHz, 16kHz"},{"offset":1,"name":"LOW GAIN","min":0,"max":40},{"offset":2,"name":"LO-MID FREQ","min":0,"max":29},{"offset":3,"name":"LO-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":4,"name":"LO-MID GAIN","min":0,"max":40},{"offset":5,"name":"HI-MID FREQ","min":0,"max":29},{"offset":6,"name":"HI-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":7,"name":"HI-MID GAIN","min":0,"max":40},{"offset":8,"name":"HIGH GAIN","min":0,"max":40},{"offset":9,"name":"HIGH CUT","min":0,"max":30},{"offset":10,"name":"LEVEL","min":0,"max":100}]},
+  "OutputSelect":{"size":1,"params":[{"offset":0,"name":"OUTPUT SELECT","min":0,"max":14,"labels":"LIN/PHN, JC RTN, JC INPUT, KT212 RTN, KT212 IN, KT100 RTN, KT100 IN, CMB212 RT, CMB212 IN, CMB112 RT, CMB112 IN, STK412 RT, STK412 IN, BA TWEET, BA NO TWT"}]},
+  "FxCommon":{"size":2,"params":[{"offset":0,"name":"ON/OFF","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"FX TYPE","min":0,"max":36,"labels":"AC RESO, AUTO WAH, CHORUS, C-VIBE, COMP, DEFRETR, DEFRET B, DELAY, FLANGER, FLANGR B, FOOT VOL, GRAPH EQ, HARMONST, HUMANIZR, ISOLATOR, LIMITER, LO-FI, OCTAVE, OCT BASS, PAN, PARA EQ, PDL BEND, PHASER, PITCH SFT, REVERB, RING MOD, ROTARY, SITAR SIM, SLICER, SLW GEAR, SG BASS, SND HOLD, TOUCH WH, TW BASS, TREMOLO, VIBRATO, WAH"}]},
+  "FxAcResonance":{"size":5,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"BODY","min":0,"max":100},{"offset":2,"name":"RESONANCE","min":0,"max":100},{"offset":3,"name":"TONE","min":0,"max":100},{"offset":4,"name":"LEVEL","min":0,"max":100}]},
+  "FxAutoWah":{"size":8,"params":[{"offset":0,"name":"FILTER MODE","min":0,"max":2,"labels":"LPF, BPF, HPF"},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"DEPTH","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"FREQUENCY","min":0,"max":100},{"offset":5,"name":"PEAK","min":0,"max":100},{"offset":6,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":7,"name":"SENS","min":0,"max":100}]},
+  "FxChorus":{"size":24,"params":[{"offset":0,"name":"MODE","min":0,"max":3,"labels":"MONO, STEREO1, STEREO2, DUAL"},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"DEPTH","min":0,"max":100},{"offset":3,"name":"PRE-DELAY","min":0,"max":80},{"offset":4,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":5,"name":"WAVEFORM","min":0,"max":1,"labels":"TRI, SINE"},{"offset":6,"name":"LOW CUT","min":0,"max":30},{"offset":7,"name":"HIGH CUT","min":0,"max":30},{"offset":8,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":23,"name":"OUTPUT MODE","min":0,"max":1,"labels":"MONO, STEREO"}]},
+  "FxClassicVibe":{"size":3,"params":[{"offset":0,"name":"RATE","min":0,"max":118},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"EFFECT LEVEL","min":0,"max":100}]},
+  "FxCompressor":{"size":6,"params":[{"offset":0,"name":"TYPE","min":0,"max":6,"labels":"BOSS CMP, Hi-BAND, LIGHT, D-COMP, ORANGE, FAT, MILD"},{"offset":1,"name":"SUSTAIN","min":0,"max":100},{"offset":2,"name":"ATTACK","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"DIRECT MIX","min":0,"max":100},{"offset":5,"name":"TONE","min":0,"max":100}]},
+  "FxDefretter":{"size":7,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"TONE","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"ATTACK","min":0,"max":100},{"offset":5,"name":"BLEND","min":0,"max":100},{"offset":6,"name":"DIRECT LEVEL","min":0,"max":100}]},
+  "FxDelay":{"size":32,"params":[{"offset":0,"name":"TYPE","min":0,"max":11,"labels":"SINGLE, MULTI, REVERSE, ANALOG, TAPE, MODULATE, WARP, TWIST, SHUFFLE, DUAL SERIES, DUAL PARALLEL, DUAL L/R"},{"offset":4,"name":"DELAY TIME","min":1,"max":2018},{"offset":5,"name":"FEEDBACK","min":0,"max":100},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":120},{"offset":7,"name":"HIGH CUT","min":0,"max":30},{"offset":8,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":30,"name":"TAP TIME","min":0,"max":100},{"offset":31,"name":"CARRY OVER","min":0,"max":1,"labels":"OFF, ON"}]},
+  "FxFlanger":{"size":9,"params":[{"offset":0,"name":"RATE","min":0,"max":118},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"RESONANCE","min":0,"max":100},{"offset":3,"name":"MANUAL","min":0,"max":100},{"offset":4,"name":"SEPARATION","min":0,"max":100},{"offset":5,"name":"LOW CUT","min":0,"max":30},{"offset":6,"name":"HIGH CUT","min":0,"max":30},{"offset":7,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":8,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxGraphicEQ":{"size":8,"params":[{"offset":0,"name":"100Hz","min":0,"max":40},{"offset":1,"name":"200Hz","min":0,"max":40},{"offset":2,"name":"400Hz","min":0,"max":40},{"offset":3,"name":"800Hz","min":0,"max":40},{"offset":4,"name":"1.6kHz","min":0,"max":40},{"offset":5,"name":"3.2kHz","min":0,"max":40},{"offset":6,"name":"6.4kHz","min":0,"max":40},{"offset":7,"name":"LEVEL","min":0,"max":40}]},
+  "FxHarmonist":{"size":39,"params":[{"offset":0,"name":"VOICE","min":0,"max":2,"labels":"1VOICE, 2MONO, 2STEREO"},{"offset":1,"name":"HR1:HARMONY","min":0,"max":29,"labels":"-2OCT, -14th, -13th, -12th, -11th, -10th, -9th, -1OCT, -7th, -6th, -5th, -4th, -3rd, -2nd, UNISON, +2nd, +3rd, +4th, +5th, +6th, +7th, +1OCT, +9th, +10th, +11th, +12th, +13th, +14th, +2OCT, USER"},{"offset":2,"name":"HR2:HARMONY","min":0,"max":29,"labels":"-2OCT, -14th, -13th, -12th, -11th, -10th, -9th, -1OCT, -7th, -6th, -5th, -4th, -3rd, -2nd, UNISON, +2nd, +3rd, +4th, +5th, +6th, +7th, +1OCT, +9th, +10th, +11th, +12th, +13th, +14th, +2OCT, USER"},{"offset":3,"name":"HR1:LEVEL","min":0,"max":100},{"offset":7,"name":"HR1:PRE-DELAY","min":0,"max":318},{"offset":8,"name":"HR1:FEEDBACK","min":0,"max":100},{"offset":9,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":10,"name":"HR2:LEVEL","min":0,"max":100},{"offset":14,"name":"HR2:PRE-DELAY","min":0,"max":318}]},
+  "FxIsolator":{"size":4,"params":[{"offset":0,"name":"BAND","min":0,"max":2,"labels":"LOW, MID, HIGH"},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"DEPTH","min":0,"max":100},{"offset":3,"name":"BAND LEVEL","min":0,"max":100}]},
+  "FxLimiter":{"size":6,"params":[{"offset":0,"name":"TYPE","min":0,"max":2,"labels":"BOSS LMT, RACK160D, VTG RCK U"},{"offset":1,"name":"THRESHOLD","min":0,"max":100},{"offset":2,"name":"RATIO","min":0,"max":17,"labels":"1:1, 1.2:1, 1.4:1, 1.6:1, 1.8:1, 2:1, 2.3:1, 2.6:1, 3:1, 3.5:1, 4:1, 5:1, 6:1, 8:1, 10:1, 12:1, 20:1, INF:1"},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"ATTACK","min":0,"max":100},{"offset":5,"name":"RELEASE","min":0,"max":100}]},
+  "FxLoFi":{"size":3,"params":[{"offset":0,"name":"BIT DEPTH","min":0,"max":15,"labels":"OFF, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1"},{"offset":1,"name":"SAMPLE RATE","min":0,"max":31,"labels":"OFF, 1/2, 1/3, 1/4, 1/5, 1/6, 1/7, 1/8, 1/9, 1/10, 1/11, 1/12, 1/13, 1/14, 1/15, 1/16, 1/17, 1/18, 1/19, 1/20, 1/21, 1/22, 1/23, 1/24, 1/25, 1/26, 1/27, 1/28, 1/29, 1/30, 1/31, 1/32"},{"offset":2,"name":"BALANCE","min":0,"max":100}]},
+  "FxOctave":{"size":3,"params":[{"offset":0,"name":"-2OCT","min":0,"max":100},{"offset":1,"name":"-1OCT","min":0,"max":100},{"offset":2,"name":"DIRECT LEVEL","min":0,"max":100}]},
+  "FxOctaveBass":{"size":3,"params":[{"offset":0,"name":"-2OCT","min":0,"max":100},{"offset":1,"name":"-1OCT","min":0,"max":100},{"offset":2,"name":"DIRECT LEVEL","min":0,"max":100}]},
+  "FxPan":{"size":6,"params":[{"offset":0,"name":"TYPE","min":0,"max":1,"labels":"AUTO, MANUAL"},{"offset":1,"name":"WAVEFORM","min":0,"max":100},{"offset":2,"name":"RATE","min":0,"max":118},{"offset":3,"name":"DEPTH","min":0,"max":100},{"offset":4,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":5,"name":"POSITION","min":0,"max":100}]},
+  "FxParametricEQ":{"size":11,"params":[{"offset":0,"name":"LOW CUT","min":0,"max":30},{"offset":1,"name":"LOW GAIN","min":0,"max":40},{"offset":2,"name":"LOW-MID FREQ","min":0,"max":29},{"offset":3,"name":"LOW-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":4,"name":"LOW-MID GAIN","min":0,"max":40},{"offset":5,"name":"HIGH-MID FREQ","min":0,"max":29},{"offset":6,"name":"HIGH-MID Q","min":0,"max":5,"labels":"0.5, 1, 2, 4, 8, 16"},{"offset":7,"name":"HIGH-MID GAIN","min":0,"max":40},{"offset":8,"name":"HIGH GAIN","min":0,"max":40},{"offset":9,"name":"HIGH CUT","min":0,"max":30},{"offset":10,"name":"LEVEL","min":0,"max":40}]},
+  "FxPedalBend":{"size":7,"params":[{"offset":0,"name":"PITCH","min":0,"max":48},{"offset":1,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":2,"name":"DIRECT MIX","min":0,"max":100},{"offset":6,"name":"PEDAL POSITION","min":0,"max":1000}]},
+  "FxPhaser":{"size":8,"params":[{"offset":0,"name":"TYPE","min":0,"max":3,"labels":"4STAGE, 8STAGE, 12STAGE, BiPHASE"},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"DEPTH","min":0,"max":100},{"offset":3,"name":"RESONANCE","min":0,"max":100},{"offset":4,"name":"MANUAL","min":0,"max":100},{"offset":5,"name":"STEP RATE","min":0,"max":119},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":7,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxPitchShifter":{"size":19,"params":[{"offset":0,"name":"VOICE","min":0,"max":2,"labels":"1VOICE, 2MONO, 2STEREO"},{"offset":1,"name":"PS1:PITCH","min":0,"max":48},{"offset":2,"name":"PS2:PITCH","min":0,"max":48},{"offset":3,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":4,"name":"PS1:MODE","min":0,"max":3,"labels":"FAST, MEDIUM, SLOW, MONO"},{"offset":5,"name":"PS1:FINE","min":0,"max":100},{"offset":9,"name":"PS1:PRE-DELAY","min":0,"max":318},{"offset":10,"name":"PS1:LEVEL","min":0,"max":100},{"offset":11,"name":"PS1:FEEDBACK","min":0,"max":100},{"offset":12,"name":"PS2:MODE","min":0,"max":3,"labels":"FAST, MEDIUM, SLOW, MONO"},{"offset":13,"name":"PS2:FINE","min":0,"max":100},{"offset":17,"name":"PS2:PRE-DELAY","min":0,"max":318},{"offset":18,"name":"PS2:LEVEL","min":0,"max":100}]},
+  "FxReverb":{"size":13,"params":[{"offset":0,"name":"TYPE","min":0,"max":6,"labels":"AMBIENCE, ROOM, HALL1, HALL2, PLATE, SPRING, MOD"},{"offset":1,"name":"TIME","min":1,"max":100},{"offset":5,"name":"PRE-DELAY","min":0,"max":500},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":7,"name":"LOW CUT","min":0,"max":30},{"offset":8,"name":"HIGH CUT","min":0,"max":30},{"offset":9,"name":"DENSITY","min":0,"max":9},{"offset":10,"name":"DIRECT LEVEL","min":0,"max":100},{"offset":11,"name":"CARRY OVER","min":0,"max":1,"labels":"OFF, ON"},{"offset":12,"name":"SPRING SENS","min":0,"max":100}]},
+  "FxRingModulation":{"size":6,"params":[{"offset":0,"name":"INTELLIGENT","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"FREQUENCY","min":0,"max":100},{"offset":2,"name":"FREQ MOD RATE","min":0,"max":118},{"offset":3,"name":"FREQ MOD DEPTH","min":0,"max":100},{"offset":4,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":5,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxRotary":{"size":8,"params":[{"offset":0,"name":"SPEED SELECT","min":0,"max":1,"labels":"SLOW, FAST"},{"offset":1,"name":"RATE SLOW","min":0,"max":118},{"offset":2,"name":"RATE FAST","min":0,"max":118},{"offset":3,"name":"DEPTH","min":0,"max":100},{"offset":4,"name":"RISE TIME","min":0,"max":100},{"offset":5,"name":"FALL TIME","min":0,"max":100},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":7,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxSitarSim":{"size":7,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"TONE","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"RESONANCE","min":0,"max":100},{"offset":5,"name":"BUZZ","min":0,"max":100},{"offset":6,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxSlicer":{"size":7,"params":[{"offset":0,"name":"PATTERN","min":0,"max":19,"labels":"P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, P12, P13, P14, P15, P16, P17, P18, P19, P20"},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"TRIGGER","min":0,"max":1,"labels":"OFF, ON"},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"ATTACK","min":0,"max":100},{"offset":5,"name":"DUTY","min":0,"max":98},{"offset":6,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxSlowGear":{"size":3,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"RISE TIME","min":0,"max":100},{"offset":2,"name":"EFFECT LEVEL","min":0,"max":100}]},
+  "FxSlowGearBass":{"size":3,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"RISE TIME","min":0,"max":100},{"offset":2,"name":"EFFECT LEVEL","min":0,"max":100}]},
+  "FxSoundHold":{"size":3,"params":[{"offset":0,"name":"TRIGGER","min":0,"max":1,"labels":"OFF, ON"},{"offset":1,"name":"RISE TIME","min":0,"max":100},{"offset":2,"name":"EFFECT LEVEL","min":0,"max":120}]},
+  "FxTouchWah":{"size":8,"params":[{"offset":0,"name":"FILTER MODE","min":0,"max":2,"labels":"LPF, BPF, HPF"},{"offset":1,"name":"POLARITY","min":0,"max":1,"labels":"DOWN, UP"},{"offset":2,"name":"SENS","min":0,"max":100},{"offset":3,"name":"FREQUENCY","min":0,"max":100},{"offset":4,"name":"RESONANCE","min":0,"max":100},{"offset":5,"name":"DECAY","min":0,"max":100},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":7,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxTouchWahBass":{"size":8,"params":[{"offset":0,"name":"FILTER MODE","min":0,"max":2,"labels":"LPF, BPF, HPF"},{"offset":1,"name":"POLARITY","min":0,"max":1,"labels":"DOWN, UP"},{"offset":2,"name":"SENS","min":0,"max":100},{"offset":3,"name":"FREQUENCY","min":0,"max":100},{"offset":4,"name":"RESONANCE","min":0,"max":100},{"offset":5,"name":"DECAY","min":0,"max":100},{"offset":6,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":7,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxTremolo":{"size":5,"params":[{"offset":0,"name":"WAVEFORM","min":0,"max":100},{"offset":1,"name":"RATE","min":0,"max":118},{"offset":2,"name":"DEPTH","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxVibrato":{"size":6,"params":[{"offset":0,"name":"RATE","min":0,"max":118},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"TRIGGER","min":0,"max":1,"labels":"OFF, ON"},{"offset":3,"name":"RISE TIME","min":0,"max":100},{"offset":4,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":5,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxWah":{"size":15,"params":[{"offset":0,"name":"TYPE","min":0,"max":6,"labels":"CRY WAH, VO WAH, FAT WAH, LIGHT WAH, 7STR WAH, RESO WAH, BASS WAH"},{"offset":4,"name":"PEDAL POSITION","min":0,"max":1000},{"offset":8,"name":"PEDAL MIN","min":0,"max":1000},{"offset":12,"name":"PEDAL MAX","min":0,"max":1000},{"offset":13,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":14,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxDefretterBass":{"size":5,"params":[{"offset":0,"name":"SENS","min":0,"max":100},{"offset":1,"name":"ATTACK","min":0,"max":100},{"offset":2,"name":"TONE","min":0,"max":100},{"offset":3,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":4,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxFlangerBass":{"size":9,"params":[{"offset":0,"name":"RATE","min":0,"max":118},{"offset":1,"name":"DEPTH","min":0,"max":100},{"offset":2,"name":"RESONANCE","min":0,"max":100},{"offset":3,"name":"MANUAL","min":0,"max":100},{"offset":4,"name":"SEPARATION","min":0,"max":100},{"offset":5,"name":"LOW CUT","min":0,"max":30},{"offset":6,"name":"HIGH CUT","min":0,"max":30},{"offset":7,"name":"EFFECT LEVEL","min":0,"max":100},{"offset":8,"name":"DIRECT MIX","min":0,"max":100}]},
+  "FxFootVolume":{"size":13,"params":[{"offset":3,"name":"VOLUME MIN","min":0,"max":1000},{"offset":7,"name":"VOLUME MAX","min":0,"max":1000},{"offset":8,"name":"VOLUME CURVE","min":0,"max":3,"labels":"SLOW1, SLOW2, NORMAL, FAST"},{"offset":12,"name":"PEDAL POSITION","min":0,"max":1000}]},
+  "FxHumanizer":{"size":8,"params":[{"offset":0,"name":"MODE","min":0,"max":1,"labels":"PICKING, AUTO"},{"offset":1,"name":"VOWEL1","min":0,"max":4,"labels":"a, e, i, o, u"},{"offset":2,"name":"VOWEL2","min":0,"max":4,"labels":"a, e, i, o, u"},{"offset":3,"name":"SENS","min":0,"max":100},{"offset":4,"name":"RATE","min":0,"max":118},{"offset":5,"name":"DEPTH","min":0,"max":100},{"offset":6,"name":"MANUAL","min":0,"max":100},{"offset":7,"name":"EFFECT LEVEL","min":0,"max":100}]}
+};
+
+// FX type index 0-36 → block name
+const FX_TYPE_NAMES = [
+  'FxAcResonance','FxAutoWah','FxChorus','FxClassicVibe','FxCompressor',
+  'FxDefretter','FxDefretterBass','FxDelay','FxFlanger','FxFlangerBass',
+  'FxFootVolume','FxGraphicEQ','FxHarmonist','FxHumanizer','FxIsolator',
+  'FxLimiter','FxLoFi','FxOctave','FxOctaveBass','FxPan',
+  'FxParametricEQ','FxPedalBend','FxPhaser','FxPitchShifter','FxReverb',
+  'FxRingModulation','FxRotary','FxSitarSim','FxSlicer','FxSlowGear',
+  'FxSlowGearBass','FxSoundHold','FxTouchWah','FxTouchWahBass','FxTremolo',
+  'FxVibrato','FxWah'
+];
+
+// FX type base 3-byte offsets within MemoryGuitar (slot 0-based, add slot to middle byte)
+const FX_TYPE_OFFSETS = [
+  [0x00,0x21,0x00],[0x00,0x24,0x00],[0x00,0x27,0x00],[0x00,0x2A,0x00],[0x00,0x2D,0x00],
+  [0x00,0x30,0x00],[0x00,0x33,0x00],[0x00,0x36,0x00],[0x00,0x39,0x00],[0x00,0x3C,0x00],
+  [0x00,0x3F,0x00],[0x00,0x42,0x00],[0x00,0x45,0x00],[0x00,0x48,0x00],[0x00,0x4B,0x00],
+  [0x00,0x4E,0x00],[0x00,0x51,0x00],[0x00,0x54,0x00],[0x00,0x57,0x00],[0x00,0x5A,0x00],
+  [0x00,0x5D,0x00],[0x00,0x60,0x00],[0x00,0x63,0x00],[0x00,0x66,0x00],[0x00,0x69,0x00],
+  [0x00,0x6C,0x00],[0x00,0x6F,0x00],[0x00,0x72,0x00],[0x00,0x75,0x00],[0x00,0x78,0x00],
+  [0x00,0x7B,0x00],[0x00,0x7E,0x00],[0x01,0x01,0x00],[0x01,0x04,0x00],[0x01,0x07,0x00],
+  [0x01,0x0A,0x00],[0x01,0x0D,0x00]
+];
+
+// MemoryGuitar 3-byte offsets
+const MG = {
+  InstCommon:  [0x00,0x00,0x00],
+  EGuitar:     [0x00,0x01,0x00],
+  AcGuitar:    [0x00,0x02,0x00],
+  DualCommon:  [0x00,0x03,0x00],
+  FxCommon1:   [0x00,0x1E,0x00],
+  FxCommon2:   [0x00,0x1F,0x00],
+  FxCommon3:   [0x00,0x20,0x00],
+  Amp1:        [0x01,0x10,0x00],
+  Amp2:        [0x01,0x11,0x00],
+  Chorus:      [0x01,0x12,0x00],
+  Compressor:  [0x01,0x13,0x00],
+  Distortion:  [0x01,0x14,0x00],
+  EQ1:         [0x01,0x15,0x00],
+  EQ2:         [0x01,0x16,0x00],
+  Delay1:      [0x01,0x17,0x00],
+  Delay2:      [0x01,0x18,0x00],
+  Reverb:      [0x01,0x19,0x00],
+  NS1:         [0x01,0x1A,0x00],
+  NS2:         [0x01,0x1B,0x00],
+  FV1:         [0x01,0x1C,0x00],
+  FV2:         [0x01,0x1D,0x00],
+  SendReturn:  [0x01,0x1E,0x00],
+  Divider:     [0x01,0x1F,0x00],
+  Mixer:       [0x01,0x20,0x00],
+  NormalInput:   [0x01,0x23,0x00],
+  Chain:         [0x01,0x24,0x00],
+  Master:        [0x01,0x25,0x00],
+  ControlDown:   [0x01,0x26,0x00],
+  ControlUp:     [0x01,0x27,0x00],
+  ControlCtl1:   [0x01,0x28,0x00],
+  ControlCtl2:   [0x01,0x29,0x00],
+  ControlCtl3:   [0x01,0x2A,0x00],
+  ControlCtl4:   [0x01,0x2B,0x00],
+  ControlCtl5:   [0x01,0x2C,0x00],
+  ControlExp1:   [0x01,0x2D,0x00],
+  ControlExp2:   [0x01,0x2E,0x00],
+  ControlGkSw1:  [0x01,0x2F,0x00],
+  ControlGkSw2:  [0x01,0x30,0x00],
+  ControlGkVol:  [0x01,0x31,0x00],
+  ControlCurNum: [0x01,0x32,0x00],
+};
+
+// SystemGuitar 3-byte offsets
+const SG = {
+  OutputSelect:  [0x00,0x0A,0x00],
+  GlobalEQCommon:[0x00,0x0B,0x00],
+  GlobalEQ1:     [0x00,0x0C,0x00],
+  GlobalEQ2:     [0x00,0x0D,0x00],
+  GlobalEQ3:     [0x00,0x0E,0x00],
+};
+
+// Base addresses
+const BASE_TEMP_GUITAR  = [0x10,0x00,0x00,0x00];
+const BASE_SYS_GUITAR   = [0x00,0x00,0x00,0x00];
+const BASE_USER_GUITAR1 = [0x30,0x00,0x00,0x00];
+const USER_GUITAR_STEP  = 0x10000; // 28-bit step between user memories (Guitar 2 is at 0x30040000)
+
+// Section → {base, offset3, blockName, displayId}
+const SECTIONS = {
+  'Master':       {base:BASE_TEMP_GUITAR, off:MG.Master,      block:'Master',          el:'master-params'},
+  'InstCommon':   {base:BASE_TEMP_GUITAR, off:MG.InstCommon,  block:'InstCommonGuitar',el:'inst-common-params'},
+  'EGuitar':      {base:BASE_TEMP_GUITAR, off:MG.EGuitar,     block:'ElectricGuitar',  el:'inst-type-params'},
+  'AcGuitar':     {base:BASE_TEMP_GUITAR, off:MG.AcGuitar,    block:'AcousticGuitar',  el:'inst-type-params'},
+  'Amp1':         {base:BASE_TEMP_GUITAR, off:MG.Amp1,        block:'Amplifier',       el:'amp1-params'},
+  'Amp2':         {base:BASE_TEMP_GUITAR, off:MG.Amp2,        block:'Amplifier',       el:'amp2-params'},
+  'Compressor':   {base:BASE_TEMP_GUITAR, off:MG.Compressor,  block:'Compressor',      el:'comp-params'},
+  'Distortion':   {base:BASE_TEMP_GUITAR, off:MG.Distortion,  block:'Distortion',      el:'dist-params'},
+  'EQ1':          {base:BASE_TEMP_GUITAR, off:MG.EQ1,         block:'Equalizer',       el:'eq1-params'},
+  'Chorus':       {base:BASE_TEMP_GUITAR, off:MG.Chorus,      block:'Chorus',          el:'chorus-params'},
+  'Delay1':       {base:BASE_TEMP_GUITAR, off:MG.Delay1,      block:'Delay',           el:'delay1-params'},
+  'Delay2':       {base:BASE_TEMP_GUITAR, off:MG.Delay2,      block:'Delay',           el:'delay2-params'},
+  'Reverb':       {base:BASE_TEMP_GUITAR, off:MG.Reverb,      block:'Reverb',          el:'reverb-params'},
+  'NS1':          {base:BASE_TEMP_GUITAR, off:MG.NS1,         block:'NoiseSuppressor', el:'ns1-params'},
+  'NS2':          {base:BASE_TEMP_GUITAR, off:MG.NS2,         block:'NoiseSuppressor', el:'ns2-params'},
+  'Chain':        {base:BASE_TEMP_GUITAR, off:MG.Chain,       block:'Chain',           el:'chain-params'},
+  'Mixer':        {base:BASE_TEMP_GUITAR, off:MG.Mixer,       block:'Mixer',           el:'mixer-params'},
+  'FV1':          {base:BASE_TEMP_GUITAR, off:MG.FV1,         block:'FootVolume',      el:'fv1-params'},
+  'FV2':          {base:BASE_TEMP_GUITAR, off:MG.FV2,         block:'FootVolume',      el:'fv2-params'},
+  'SendReturn':   {base:BASE_TEMP_GUITAR, off:MG.SendReturn,  block:'SendReturn',      el:'sr-params'},
+  'Divider':      {base:BASE_TEMP_GUITAR, off:MG.Divider,     block:'Divider',         el:'divider-params'},
+  'NormalInput':  {base:BASE_TEMP_GUITAR, off:MG.NormalInput, block:'NormalInput',     el:'ni-params'},
+  'GlobalEQCommon':{base:BASE_SYS_GUITAR, off:SG.GlobalEQCommon, block:'GlobalEQCommon', el:'geqc-params'},
+  'GlobalEQ1':    {base:BASE_SYS_GUITAR, off:SG.GlobalEQ1,   block:'GlobalEQ',        el:'geq1-params'},
+  'OutputSelect': {base:BASE_SYS_GUITAR, off:SG.OutputSelect, block:'OutputSelect',   el:'outsel-params'},
+};
+
+// Control pedal slot descriptors
+const CTRL_SLOTS = [
+  {label:'DOWN',    mg:MG.ControlDown,   type:'ctl'},
+  {label:'UP',      mg:MG.ControlUp,     type:'ctl'},
+  {label:'CTL 1',   mg:MG.ControlCtl1,   type:'ctl'},
+  {label:'CTL 2',   mg:MG.ControlCtl2,   type:'ctl'},
+  {label:'CTL 3',   mg:MG.ControlCtl3,   type:'ctl'},
+  {label:'CTL 4',   mg:MG.ControlCtl4,   type:'ctl'},
+  {label:'CTL 5',   mg:MG.ControlCtl5,   type:'ctl'},
+  {label:'GK SW 1', mg:MG.ControlGkSw1,  type:'ctl'},
+  {label:'GK SW 2', mg:MG.ControlGkSw2,  type:'ctl'},
+  {label:'CUR NUM', mg:MG.ControlCurNum, type:'ctl'},
+  {label:'EXP 1',   mg:MG.ControlExp1,   type:'exp'},
+  {label:'EXP 2',   mg:MG.ControlExp2,   type:'exp'},
+  {label:'GK VOL',  mg:MG.ControlGkVol,  type:'exp'},
+];
+const CTL_FUNC_LABELS = 'OFF, MEMORY +1, MEMORY -1, BANK UP, BANK DOWN, LEVEL +10, LEVEL +20, LEVEL -10, LEVEL -20, BPM TAP, DLY1 TAP, DLY2 TAP, FX1 DLY TAP, FX2 DLY TAP, FX3 DLY TAP, TUNER, FX BYPASS, INST, INST NOR MIX, ALT TUNE, 12STR, STR BEND, PU SEL UP, PU SEL DOWN, DUAL SEL, NORMAL, FX1, FX2, FX3, CMP, DS, DS SOLO, AMP1, AMP1 SOLO, AMP2, AMP2 SOLO, EQ1, EQ2, NS1, NS2, DLY1, DLY2, CHO, REV, S/R1, S/R2, FX1 TRIGGER, FX2 TRIGGER, FX3 TRIGGER, DIV CH.SEL, MIDI START, MMC PLAY'.split(', ');
+const EXP_FUNC_LABELS = 'OFF, FV1, FV2, FV1+TUNER, FV2+TUNER, FX1 PDL POS, FX2 PDL POS, FX3 PDL POS, MEM LVL100, MEM LVL200, INST LEVEL, INST CUTOFF, INST RESO, GTR VOL, DUAL A/B, NOR MIX100, NOR MIX200, STR BEND, MIXER A/B, BALANCE1 A/B, BALANCE2 A/B'.split(', ');
+
+// ============================================================
+// MIDI STATE
+// ============================================================
+let midiAccess = null;
+let midiInput = null;
+let midiOutput = null;
+let deviceId = 16; // 0x10
+let midiChannel = 0; // 0-based (channel 1 = 0)
+let sysexBuffer = [];
+let pendingReads = new Map(); // addrKey → {resolve, reject, timeout}
+let blockCache = new Map();   // addrKey → data[]
+let fxCommonCache = [{type:0,on:1},{type:0,on:1},{type:0,on:1}];
+let fxTypeBlockCache = [null, null, null]; // data for each FX slot
+let isDirty = false;
+let currentMemorySlot = null; // 0-indexed
+
+function markDirty() {
+  if (isDirty) return;
+  isDirty = true;
+  document.getElementById('dirty-dot').classList.add('dirty');
+  document.getElementById('btn-save-patch').disabled = false;
+}
+
+function markClean() {
+  isDirty = false;
+  document.getElementById('dirty-dot').classList.remove('dirty');
+  document.getElementById('btn-save-patch').disabled = true;
+}
+
+// ============================================================
+// ADDRESS MATH
+// ============================================================
+function to28(a4) { return ((a4[0]<<21)|(a4[1]<<14)|(a4[2]<<7)|a4[3])>>>0; }
+function from28(v) { return [(v>>21)&0x7F,(v>>14)&0x7F,(v>>7)&0x7F,v&0x7F]; }
+
+function blockAddr(base4, off3) {
+  const v = to28(base4) + ((off3[0]<<14)|(off3[1]<<7)|off3[2]);
+  return from28(v);
+}
+
+function addrKey(a4) { return a4.map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+function checksum(bytes) {
+  let sum = bytes.reduce((a,b)=>a+b,0) % 128;
+  return sum === 0 ? 0 : (128 - sum);
+}
+
+// How many raw SysEx bytes encode this parameter?
+// Returns: {n, startOffset} where n=1 means 7-bit byte, n=2 means 2 nibbles, n=4 means 4 nibbles
+function paramEncoding(param) {
+  if (param.max <= 127) return {n:1, startOff:param.offset};
+  if (param.max <= 255) return {n:2, startOff:param.offset-1};
+  return {n:4, startOff:param.offset-3};
+}
+
+function readParamValue(data, param) {
+  const {n, startOff} = paramEncoding(param);
+  if (startOff < 0 || startOff + n > data.length) return param.min;
+  if (n === 1) return data[startOff];
+  if (n === 2) return (data[startOff]<<4)|data[startOff+1];
+  return (data[startOff]<<12)|(data[startOff+1]<<8)|(data[startOff+2]<<4)|data[startOff+3];
+}
+
+function paramToBytes(param, value) {
+  const {n, startOff} = paramEncoding(param);
+  const bytes = [];
+  if (n === 1) bytes.push(value & 0x7F);
+  else if (n === 2) { bytes.push((value>>4)&0x0F); bytes.push(value&0x0F); }
+  else { bytes.push((value>>12)&0x0F); bytes.push((value>>8)&0x0F); bytes.push((value>>4)&0x0F); bytes.push(value&0x0F); }
+  return {bytes, startOff};
+}
+
+// ============================================================
+// SYSEX BUILDERS
+// ============================================================
+function buildRQ1(addr4, size) {
+  const sz4 = [(size>>21)&0x7F,(size>>14)&0x7F,(size>>7)&0x7F,size&0x7F];
+  const cs = checksum([...addr4,...sz4]);
+  return [0xF0,0x41,deviceId,0x01,0x06,0x04,0x11,...addr4,...sz4,cs,0xF7];
+}
+
+function buildDT1(addr4, data) {
+  const cs = checksum([...addr4,...data]);
+  return [0xF0,0x41,deviceId,0x01,0x06,0x04,0x12,...addr4,...data,cs,0xF7];
+}
+
+// ============================================================
+// MIDI I/O
+// ============================================================
+async function initMidi() {
+  if (!navigator.requestMIDIAccess) {
+    setStatus('error', 'WebMIDI not supported — use Chrome or Edge');
+    showMidiHelp('WebMIDI is not supported in this browser. Use Google Chrome or Microsoft Edge.');
+    return;
+  }
+  if (location.protocol === 'file:') {
+    showMidiHelp('WebMIDI is blocked on file:// URLs by Chrome.\n\nRun a local server:\n  python3 -m http.server 8080\n\nThen open: http://localhost:8080/vg800-editor.html');
+    setStatus('error', 'Serve via HTTP (not file://)');
+    return;
+  }
+  // Step 1: try without sysex to check if basic MIDI access works
+  let basicAccess;
+  try {
+    basicAccess = await navigator.requestMIDIAccess({sysex: false});
+  } catch(e) {
+    showMidiHelp('MIDI access denied (no-sysex): ' + e.message);
+    setStatus('error', 'MIDI denied');
+    return;
+  }
+
+  const basicIns = [...basicAccess.inputs.values()].map(p => p.name);
+  const basicOuts = [...basicAccess.outputs.values()].map(p => p.name);
+
+  if (basicIns.length === 0 && basicOuts.length === 0) {
+    showMidiHelp(
+      'WebMIDI initialized but found 0 ports (even without sysex).\n\n' +
+      'VG-800 shows in MIDIox but Chrome cannot see it. Known causes:\n\n' +
+      '  A) Roland USB driver registers the device under a different MIDI name.\n' +
+      '     Open MIDIox → Options → MIDI Devices — note the exact port name shown.\n\n' +
+      '  B) Chrome MIDI port list is stale. Try:\n' +
+      '     1. Close ALL Chrome windows\n' +
+      '     2. Unplug VG-800 USB\n' +
+      '     3. Reopen Chrome and load this page\n' +
+      '     4. Plug in VG-800 — Chrome should detect it via onstatechange\n\n' +
+      '  C) Go to chrome://flags and search "midi" — ensure nothing is disabled.\n\n' +
+      '  D) Try Microsoft Edge instead of Chrome.'
+    );
+    setStatus('error', '0 MIDI ports found');
+    return;
+  }
+
+  // Basic MIDI works — now request sysex
+  showMidiHelp(`Basic MIDI OK: found [${basicIns.join(', ')}]\nNow requesting sysex access — accept the browser prompt if it appears.`);
+  document.getElementById('midi-help').style.color = '#8f8';
+
+  try {
+    midiAccess = await navigator.requestMIDIAccess({sysex: true});
+  } catch(e) {
+    // Sysex denied — fall back to basic access (reads won't work, writes might)
+    midiAccess = basicAccess;
+    showMidiHelp('Sysex permission denied — SysEx read/write will not work.\nClick the lock icon in the address bar → Site settings → MIDI → Allow.');
+    document.getElementById('midi-help').style.color = '#f88';
+  }
+
+  midiAccess.onstatechange = (e) => {
+    log('info', `MIDI state change: ${e.port.name} [${e.port.type}] → ${e.port.state}`);
+    refreshPorts();
+  };
+  refreshPorts();
+  dumpMidiState();
+}
+
+function showMidiHelp(msg) {
+  const el = document.getElementById('midi-help');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function dumpMidiState() {
+  if (!midiAccess) { showMidiHelp('WebMIDI access object not available.'); return; }
+  const ins = [...midiAccess.inputs.values()];
+  const outs = [...midiAccess.outputs.values()];
+  if (ins.length === 0 && outs.length === 0) {
+    showMidiHelp(
+      'WebMIDI initialized OK but no MIDI ports found.\n\n' +
+      'Checklist:\n' +
+      '  1. Is the VG-800 powered on and connected via USB?\n' +
+      '  2. Windows Device Manager → "Sound, video and game controllers" — does VG-800 appear?\n' +
+      '  3. In Chrome address bar: click the lock/info icon → Site settings → MIDI → set to Allow\n' +
+      '  4. Try unplugging and replugging the USB cable, then click Refresh\n\n' +
+      'Note: if you are on Linux/WSL, open this page in the Windows browser (not WSL browser).'
+    );
+    setStatus('error', 'No MIDI devices found');
+  } else {
+    document.getElementById('midi-help').style.display = 'none';
+    const inNames = ins.map(p => `${p.name} [${p.state}]`).join('\n  ');
+    const outNames = outs.map(p => `${p.name} [${p.state}]`).join('\n  ');
+    log('info', `Inputs:\n  ${inNames}\nOutputs:\n  ${outNames}`);
+    setStatus('connected', `MIDI ready — ${ins.length} in, ${outs.length} out`);
+  }
+}
+
+function refreshPorts() {
+  if (!midiAccess) { initMidi(); return; }
+  const inSel = document.getElementById('sel-in');
+  const outSel = document.getElementById('sel-out');
+  const prevIn = inSel.value, prevOut = outSel.value;
+
+  inSel.innerHTML = '<option value="">-- none --</option>';
+  outSel.innerHTML = '<option value="">-- none --</option>';
+
+  for (const [id, port] of midiAccess.inputs) {
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = port.name;
+    if (id === prevIn) opt.selected = true;
+    inSel.appendChild(opt);
+  }
+  for (const [id, port] of midiAccess.outputs) {
+    const opt = document.createElement('option');
+    opt.value = id; opt.textContent = port.name;
+    if (id === prevOut) opt.selected = true;
+    outSel.appendChild(opt);
+  }
+
+  if (!prevIn && midiAccess.inputs.size > 0) inSel.value = [...midiAccess.inputs.keys()][0];
+  if (!prevOut && midiAccess.outputs.size > 0) outSel.value = [...midiAccess.outputs.keys()][0];
+
+  selectInput(inSel.value);
+  selectOutput(outSel.value);
+}
+
+function selectInput(id) {
+  if (midiInput) midiInput.onmidimessage = null;
+  midiInput = id ? midiAccess.inputs.get(id) : null;
+  if (midiInput) {
+    midiInput.onmidimessage = onMidiMessage;
+    setStatus('connected', 'Ready: ' + midiInput.name);
+  } else {
+    setStatus('', 'No input selected');
+  }
+}
+
+function selectOutput(id) {
+  midiOutput = id ? midiAccess.outputs.get(id) : null;
+}
+
+function send(msg) {
+  if (!midiOutput) { log('err', 'No output port'); return; }
+  midiOutput.send(msg);
+  log('tx', fmtBytes(msg));
+}
+
+// ============================================================
+// MIDI RECEIVE
+// ============================================================
+function onMidiMessage(event) {
+  const data = Array.from(event.data);
+  if (data[0] === 0xF0) {
+    sysexBuffer = [...data];
+  } else if (sysexBuffer.length > 0) {
+    sysexBuffer.push(...data);
+  } else {
+    return; // ignore non-sysex
+  }
+  if (sysexBuffer[sysexBuffer.length-1] === 0xF7) {
+    processSysex([...sysexBuffer]);
+    sysexBuffer = [];
+  }
+}
+
+function processSysex(msg) {
+  log('rx', fmtBytes(msg));
+  if (msg.length < 5) return;
+
+  // Universal Non-realtime identity reply: F0 7E dev 06 02 ...
+  if (msg[0] === 0xF0 && msg[1] === 0x7E && msg[3] === 0x06 && msg[4] === 0x02) {
+    const dev = msg[2];
+    document.getElementById('device-id').value = dev;
+    deviceId = dev;
+    const fw = `${msg[11]||0}.${msg[13]||0}`;
+    log('info', `Identity reply: dev ID=${dev}, firmware v${fw}`);
+    setStatus('connected', `VG-800 found (dev=${dev}, fw=${fw})`);
+    return;
+  }
+
+  // Roland DT1: F0 41 dev 01 06 04 12 addr[4] data... cs F7
+  if (msg.length < 12) return;
+  if (msg[0] !== 0xF0 || msg[1] !== 0x41) return;
+  if (msg[3] !== 0x01 || msg[4] !== 0x06 || msg[5] !== 0x04) return;
+
+  if (msg[6] === 0x12) { // DT1
+    const addr = [msg[7],msg[8],msg[9],msg[10]];
+    const data = msg.slice(11, msg.length-2); // exclude checksum and F7
+    const key = addrKey(addr);
+    blockCache.set(key, data);
+    if (pendingReads.has(key)) {
+      const {resolve, timeout} = pendingReads.get(key);
+      clearTimeout(timeout);
+      pendingReads.delete(key);
+      resolve(data);
+    }
+  }
+}
+
+async function readBlock(addr4, size) {
+  const key = addrKey(addr4);
+  if (blockCache.has(key)) return blockCache.get(key);
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      pendingReads.delete(key);
+      reject(new Error('Read timeout'));
+    }, 3000);
+    pendingReads.set(key, {resolve, reject, timeout: t});
+    send(buildRQ1(addr4, size));
+  });
+}
+
+function writeParamToDevice(addr4, off3, param, value) {
+  const blockBase = blockAddr(addr4, off3);
+  const {bytes, startOff} = paramToBytes(param, value);
+  const paramAddr = from28(to28(blockBase) + startOff);
+  send(buildDT1(paramAddr, bytes));
+  markDirty();
+  // Update cache
+  const key = addrKey(blockBase);
+  if (blockCache.has(key)) {
+    const d = blockCache.get(key);
+    for (let i = 0; i < bytes.length; i++) d[startOff + i] = bytes[i];
+  }
+}
+
+// ============================================================
+// SECTION READING
+// ============================================================
+async function readSection(sectionKey) {
+  const sec = SECTIONS[sectionKey];
+  if (!sec) return;
+  const addr = blockAddr(sec.base, sec.off);
+  const block = BLOCKS[sec.block];
+  if (!block) { log('err','No block def: '+sec.block); return; }
+  const el = document.getElementById(sec.el);
+  if (el) el.innerHTML = '<div class="loading-msg">Reading...</div>';
+  blockCache.delete(addrKey(addr)); // always re-read from device
+  try {
+    const data = await readBlock(addr, block.size);
+    renderBlockParams(sec.el, sectionKey, sec.base, sec.off, sec.block, data);
+    if (sectionKey === 'Chain') updateChainVisual();
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+    log('err', `readSection ${sectionKey}: ${e.message}`);
+  }
+}
+
+async function readFxSlot(slot, targetElId) {
+  // Read FxCommon for this slot
+  const fcOff = [MG.FxCommon1, MG.FxCommon2, MG.FxCommon3][slot];
+  const fcAddr = blockAddr(BASE_TEMP_GUITAR, fcOff);
+  const defaultElId = 'fx'+slot+'-params';
+  const paramsElId = targetElId || defaultElId;
+  const paramsEl = document.getElementById(paramsElId);
+  if (!targetElId) blockCache.delete(addrKey(fcAddr));
+  try {
+    const fcData = await readBlock(fcAddr, BLOCKS.FxCommon.size);
+    const onOff = fcData[0];
+    const fxType = fcData[1];
+    fxCommonCache[slot] = {type: fxType, on: onOff};
+    if (!targetElId) updateFxCommonUI(slot, onOff, fxType);
+    // Now read the effect block
+    const blockName = FX_TYPE_NAMES[fxType];
+    if (!blockName || !BLOCKS[blockName]) {
+      const typeName = BLOCKS.FxCommon?.params[1]?.labels?.split(',')[fxType]?.trim() || ('type '+fxType);
+      if (paramsEl) paramsEl.innerHTML = '<div class="loading-msg">'+typeName+': params not yet in editor</div>';
+      return;
+    }
+    const base3 = FX_TYPE_OFFSETS[fxType];
+    const base21 = (base3[0]<<14)|(base3[1]<<7)|base3[2];
+    const slot21 = base21 + slot * 128;
+    const effOff = [(slot21>>14)&0x7F,(slot21>>7)&0x7F,slot21&0x7F];
+    const effAddr = blockAddr(BASE_TEMP_GUITAR, effOff);
+    if (paramsEl) paramsEl.innerHTML = '<div class="loading-msg">Reading '+blockName+'...</div>';
+    const effData = await readBlock(effAddr, BLOCKS[blockName].size);
+    fxTypeBlockCache[slot] = {addr: effAddr, off3: effOff, blockName, data: effData};
+    renderBlockParams(paramsElId, 'FxSlot'+slot, BASE_TEMP_GUITAR, effOff, blockName, effData);
+  } catch(e) {
+    if (paramsEl) paramsEl.innerHTML = `<div class="error-msg">Error: ${e.message}</div>`;
+    log('err','readFxSlot '+slot+': '+e.message);
+  }
+}
+
+async function readAll() {
+  const sections = ['Master','InstCommon','Amp1','Amp2','Compressor','Distortion',
+                    'EQ1','Chorus','Delay1','Delay2','Reverb','NS1','NS2',
+                    'Chain','Mixer','FV1','FV2','SendReturn','Divider','NormalInput'];
+  for (const s of sections) {
+    await readSection(s).catch(()=>{});
+    await sleep(50); // small gap between requests
+  }
+  for (let i = 0; i < 3; i++) {
+    await readFxSlot(i).catch(()=>{});
+    await sleep(50);
+  }
+  updatePatchNameDisplay();
+  updateChainVisual();
+  await readControlAll().catch(()=>{});
+  markClean();
+}
+
+async function readControlAll() {
+  const container = document.getElementById('ctrl-table-container');
+  if (container) container.innerHTML = '<div class="loading-msg">Reading...</div>';
+  for (const slot of CTRL_SLOTS) {
+    const addr = blockAddr(BASE_TEMP_GUITAR, slot.mg);
+    blockCache.delete(addrKey(addr));
+    const size = slot.type === 'ctl' ? 2 : 1;
+    try {
+      await readBlock(addr, size);
+      await sleep(50);
+    } catch(e) {
+      log('err', 'Control read ' + slot.label + ': ' + e.message);
+    }
+  }
+  renderControlTab();
+}
+
+function renderControlTab() {
+  const container = document.getElementById('ctrl-table-container');
+  if (!container) return;
+
+  const table = document.createElement('table');
+  table.className = 'ctrl-table';
+  table.innerHTML = '<thead><tr><th>CONTROLLER</th><th>FUNCTION</th><th class="mode-cell">MODE</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+
+  let expHeaderAdded = false;
+  for (const slot of CTRL_SLOTS) {
+    if (slot.type === 'exp' && !expHeaderAdded) {
+      const divRow = document.createElement('tr');
+      divRow.className = 'section-divider';
+      divRow.innerHTML = '<td colspan="3">EXP Pedal Assignments</td>';
+      tbody.appendChild(divRow);
+      expHeaderAdded = true;
+    }
+
+    const addr = blockAddr(BASE_TEMP_GUITAR, slot.mg);
+    const data = blockCache.get(addrKey(addr));
+
+    const tr = document.createElement('tr');
+
+    // Name
+    const tdName = document.createElement('td');
+    tdName.textContent = slot.label;
+    tr.appendChild(tdName);
+
+    if (slot.type === 'ctl') {
+      const funcVal = data ? data[0] : 0;
+      const modeVal = data ? data[1] : 0;
+
+      // CTL FUNCTION select
+      const tdFunc = document.createElement('td');
+      const selFunc = document.createElement('select');
+      selFunc.className = 'param-select';
+      CTL_FUNC_LABELS.forEach((lbl, i) => {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = lbl;
+        if (i === funcVal) opt.selected = true;
+        selFunc.appendChild(opt);
+      });
+      selFunc.onchange = function() {
+        writeParamToDevice(BASE_TEMP_GUITAR, slot.mg, {offset:0, name:'CTL FUNCTION', min:0, max:51}, parseInt(this.value));
+      };
+      tdFunc.appendChild(selFunc);
+      tr.appendChild(tdFunc);
+
+      // CTL MODE select
+      const tdMode = document.createElement('td');
+      tdMode.className = 'mode-cell';
+      const selMode = document.createElement('select');
+      selMode.className = 'param-select';
+      ['TOGGLE','MOMENT'].forEach((lbl, i) => {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = lbl;
+        if (i === modeVal) opt.selected = true;
+        selMode.appendChild(opt);
+      });
+      selMode.onchange = function() {
+        writeParamToDevice(BASE_TEMP_GUITAR, slot.mg, {offset:1, name:'CTL MODE', min:0, max:1}, parseInt(this.value));
+      };
+      tdMode.appendChild(selMode);
+      tr.appendChild(tdMode);
+
+    } else {
+      const funcVal = data ? data[0] : 0;
+
+      // EXP FUNCTION select
+      const tdFunc = document.createElement('td');
+      const sel = document.createElement('select');
+      sel.className = 'param-select';
+      EXP_FUNC_LABELS.forEach((lbl, i) => {
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = lbl;
+        if (i === funcVal) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = function() {
+        writeParamToDevice(BASE_TEMP_GUITAR, slot.mg, {offset:0, name:'EXP FUNCTION', min:0, max:20}, parseInt(this.value));
+      };
+      tdFunc.appendChild(sel);
+      tr.appendChild(tdFunc);
+
+      // Empty mode cell
+      tr.appendChild(document.createElement('td'));
+    }
+
+    tbody.appendChild(tr);
+  }
+
+  table.appendChild(tbody);
+  container.innerHTML = '';
+  container.appendChild(table);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ============================================================
+// RENDERING
+// ============================================================
+function getLabels(param) {
+  if (!param.labels) return null;
+  const parts = param.labels.split(',').map(s=>s.trim()).filter(s=>s);
+  if (parts.length < 2) return null;
+  // Check if all parts look like option names (not just numbers/ranges)
+  const range = param.max - param.min;
+  if (parts.length >= range) return parts;
+  // Some labels are partial lists for reference, not enum
+  return null;
+}
+
+function formatValue(param, val) {
+  const labels = getLabels(param);
+  if (labels) {
+    const idx = val - param.min;
+    return labels[idx] || val.toString();
+  }
+  // Offset display for centered params
+  if (param.max === 100 && param.min === 0) {
+    if (param.name.includes('GAIN') || param.name.includes('TONE') || param.name.includes('BOTTOM'))
+      return (val - 50).toString();
+  }
+  if (param.max === 20 && param.min === 0) return (val - 10).toString();
+  if (param.max === 40 && param.min === 0) return (val - 20).toString();
+  return val.toString();
+}
+
+function renderBlockParams(elId, sectionKey, base4, off3, blockName, data) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const block = BLOCKS[blockName];
+  if (!block) { el.innerHTML = '<div class="error-msg">Unknown block: '+blockName+'</div>'; return; }
+
+  el.innerHTML = '';
+  for (const param of block.params) {
+    if (param.name === 'NAME') continue; // handled separately
+    const val = readParamValue(data, param);
+    const row = buildParamControl(sectionKey, base4, off3, param, val);
+    el.appendChild(row);
+  }
+}
+
+function makeKnob(param, initialVal, onChange) {
+  const S = 40, cx = 20, cy = 20, r = 15;
+  const MIN_A = -135, MAX_A = 135; // degrees from 12-o'clock, CW
+
+  function ang(v) {
+    return MIN_A + (v - param.min) / (param.max - param.min) * (MAX_A - MIN_A);
+  }
+  function pt(deg) {
+    const rad = deg * Math.PI / 180;
+    return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
+  }
+  function arcD(a1, a2) {
+    const [sx, sy] = pt(a1), [ex, ey] = pt(a2);
+    const large = (a2 - a1) > 180 ? 1 : 0;
+    return `M${sx.toFixed(2)},${sy.toFixed(2)} A${r},${r},0,${large},1,${ex.toFixed(2)},${ey.toFixed(2)}`;
+  }
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const wrap = document.createElement('div');
+  wrap.className = 'knob-wrap';
+
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('width', S); svg.setAttribute('height', S);
+
+  const track = document.createElementNS(ns, 'path');
+  track.setAttribute('class', 'knob-track');
+  track.setAttribute('d', arcD(MIN_A, MAX_A));
+  svg.appendChild(track);
+
+  const fill = document.createElementNS(ns, 'path');
+  fill.setAttribute('class', 'knob-fill');
+  svg.appendChild(fill);
+
+  const dot = document.createElementNS(ns, 'circle');
+  dot.setAttribute('class', 'knob-dot'); dot.setAttribute('r', '2');
+  svg.appendChild(dot);
+
+  const valEl = document.createElement('div');
+  valEl.className = 'knob-val';
+
+  let curVal = initialVal;
+  function update(v) {
+    curVal = Math.max(param.min, Math.min(param.max, v));
+    const a = ang(curVal);
+    const [dx, dy] = pt(a);
+    dot.setAttribute('cx', dx.toFixed(2)); dot.setAttribute('cy', dy.toFixed(2));
+    if (a > MIN_A + 0.5) {
+      fill.setAttribute('d', arcD(MIN_A, a));
+      fill.removeAttribute('display');
+    } else {
+      fill.setAttribute('display', 'none');
+    }
+    valEl.textContent = formatValue(param, curVal);
+  }
+  update(curVal);
+  wrap.appendChild(svg);
+  wrap.appendChild(valEl);
+
+  const range = param.max - param.min;
+  const sensitivity = range / 120;
+  let dragY = null, dragVal = null;
+
+  wrap.addEventListener('mousedown', e => {
+    e.preventDefault();
+    dragY = e.clientY; dragVal = curVal;
+    const onMove = e => {
+      const v = Math.round(Math.max(param.min, Math.min(param.max, dragVal + (dragY - e.clientY) * sensitivity)));
+      if (v !== curVal) { update(v); onChange(v); }
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  wrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    const step = e.shiftKey ? Math.max(1, Math.round(range / 10)) : 1;
+    const v = Math.max(param.min, Math.min(param.max, curVal + (e.deltaY < 0 ? step : -step)));
+    if (v !== curVal) { update(v); onChange(v); }
+  }, { passive: false });
+
+  return wrap;
+}
+
+function buildParamControl(sectionKey, base4, off3, param, val) {
+  const row = document.createElement('div');
+  row.className = 'param-row';
+  row.dataset.section = sectionKey;
+  row.dataset.param = param.name;
+
+  const labels = getLabels(param);
+  const range = param.max - param.min;
+
+  if (range === 1 && param.min === 0) {
+    // Toggle — wide layout
+    row.classList.add('wide-ctrl');
+    const label = document.createElement('div');
+    label.className = 'param-label'; label.textContent = param.name; label.title = param.name;
+    row.appendChild(label);
+    const ctrl = document.createElement('div'); ctrl.className = 'param-control';
+    const btn = document.createElement('button');
+    btn.className = 'toggle-btn' + (val ? ' on' : '');
+    btn.innerHTML = `<span class="dot"></span>${val ? (labels ? labels[1] : 'ON') : (labels ? labels[0] : 'OFF')}`;
+    btn.dataset.val = val;
+    btn.onclick = function() {
+      const newVal = (parseInt(this.dataset.val) + 1) % 2;
+      this.dataset.val = newVal;
+      this.className = 'toggle-btn' + (newVal ? ' on' : '');
+      this.innerHTML = `<span class="dot"></span>${newVal ? (labels ? labels[1] : 'ON') : (labels ? labels[0] : 'OFF')}`;
+      writeParamToDevice(base4, off3, param, newVal);
+    };
+    ctrl.appendChild(btn);
+    row.appendChild(ctrl);
+  } else if (labels) {
+    // Select — wide layout
+    row.classList.add('wide-ctrl');
+    const label = document.createElement('div');
+    label.className = 'param-label'; label.textContent = param.name; label.title = param.name;
+    row.appendChild(label);
+    const ctrl = document.createElement('div'); ctrl.className = 'param-control';
+    const sel = document.createElement('select'); sel.className = 'param-select';
+    for (let i = param.min; i <= param.max; i++) {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = labels[i - param.min] || i.toString();
+      if (i === val) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.onchange = function() { writeParamToDevice(base4, off3, param, parseInt(this.value)); };
+    ctrl.appendChild(sel);
+    row.appendChild(ctrl);
+  } else {
+    // Knob — compact vertical layout (knob on top, label below)
+    const ctrl = document.createElement('div'); ctrl.className = 'param-control';
+    let writeTimer = null;
+    const knob = makeKnob(param, val, v => {
+      clearTimeout(writeTimer);
+      writeTimer = setTimeout(() => writeParamToDevice(base4, off3, param, v), 40);
+    });
+    ctrl.appendChild(knob);
+    row.appendChild(ctrl);
+    const label = document.createElement('div');
+    label.className = 'param-label'; label.textContent = param.name; label.title = param.name;
+    row.appendChild(label);
+  }
+
+  return row;
+}
+
+function updateFxCommonUI(slot, onOff, fxType) {
+  const onoffEl = document.getElementById('fx'+slot+'-onoff');
+  const typeEl = document.getElementById('fx'+slot+'-type');
+  if (onoffEl) {
+    const fcOff = [MG.FxCommon1, MG.FxCommon2, MG.FxCommon3][slot];
+    const onParam = BLOCKS.FxCommon.params[0];
+    const btn = document.createElement('button');
+    btn.className = 'toggle-btn' + (onOff ? ' on' : '');
+    btn.innerHTML = `<span class="dot"></span>${onOff ? 'ON' : 'OFF'}`;
+    btn.dataset.val = onOff;
+    btn.onclick = function() {
+      const newVal = (parseInt(this.dataset.val) + 1) % 2;
+      this.dataset.val = newVal;
+      this.className = 'toggle-btn' + (newVal ? ' on' : '');
+      this.innerHTML = `<span class="dot"></span>${newVal ? 'ON' : 'OFF'}`;
+      writeParamToDevice(BASE_TEMP_GUITAR, fcOff, onParam, newVal);
+    };
+    onoffEl.innerHTML = '';
+    onoffEl.appendChild(btn);
+  }
+  if (typeEl) {
+    typeEl.value = fxType;
+  }
+}
+
+// ============================================================
+// INSTRUMENT TAB
+// ============================================================
+function initInstTab() {
+  const subTabs = document.getElementById('inst-type-tabs');
+  const instTypes = [
+    {label:'E.GUITAR', section:'EGuitar'},
+    {label:'ACOUSTIC', section:'AcGuitar'},
+    {label:'DUAL GTR', section:'DualCommon'},
+  ];
+  subTabs.innerHTML = '';
+  instTypes.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'sub-tab' + (i===0?' active':'');
+    btn.textContent = t.label;
+    btn.onclick = () => {
+      document.querySelectorAll('#inst-type-tabs .sub-tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      readSection(t.section);
+    };
+    subTabs.appendChild(btn);
+  });
+}
+
+// ============================================================
+// FX TYPE SELECTORS
+// ============================================================
+function initFxTypeSelectors() {
+  const labels = BLOCKS.FxCommon.params[1].labels.split(',').map(s=>s.trim()).filter(s=>s);
+  for (let slot = 0; slot < 3; slot++) {
+    const sel = document.getElementById('fx'+slot+'-type');
+    sel.innerHTML = '';
+    labels.forEach((lbl, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = lbl;
+      sel.appendChild(opt);
+    });
+    const _slot = slot;
+    sel.onchange = function() {
+      const newType = parseInt(this.value);
+      const fcOff = [MG.FxCommon1, MG.FxCommon2, MG.FxCommon3][_slot];
+      const typeParam = BLOCKS.FxCommon.params[1];
+      writeParamToDevice(BASE_TEMP_GUITAR, fcOff, typeParam, newType);
+      fxCommonCache[_slot].type = newType;
+      // Re-read the effect block
+      readFxSlot(_slot);
+    };
+  }
+}
+
+// ============================================================
+// PATCH / MASTER
+// ============================================================
+async function readPatch() {
+  await readSection('Master');
+  await readSection('InstCommon');
+  updatePatchNameDisplay();
+}
+
+function updatePatchNameDisplay() {
+  const sec = SECTIONS['Master'];
+  const addr = blockAddr(sec.base, sec.off);
+  const key = addrKey(addr);
+  const data = blockCache.get(key);
+  if (!data) return;
+  let name = '';
+  for (let i = 0; i < 16; i++) name += String.fromCharCode(data[i] || 32);
+  document.getElementById('patch-name-display').textContent = name;
+  document.getElementById('patch-name-input').value = name;
+  document.getElementById('patch-name-header').textContent = name.trim();
+}
+
+async function writePatchName() {
+  const input = document.getElementById('patch-name-input');
+  let name = input.value.padEnd(16, ' ').slice(0, 16);
+  const sec = SECTIONS['Master'];
+  const addr = blockAddr(sec.base, sec.off);
+  const bytes = Array.from(name).map(c => {
+    const code = c.charCodeAt(0);
+    return (code >= 32 && code <= 126) ? code : 32;
+  });
+  send(buildDT1(addr, bytes));
+  markDirty();
+  document.getElementById('patch-name-display').textContent = name;
+  document.getElementById('patch-name-header').textContent = name.trim();
+  const key = addrKey(addr);
+  if (blockCache.has(key)) {
+    const d = blockCache.get(key);
+    for (let i = 0; i < 16; i++) d[i] = bytes[i];
+  }
+}
+
+// ============================================================
+// CHAIN VISUAL
+// ============================================================
+// Map from chain label → {sectionKey, onOffOff} (-1 = no on/off param)
+const CHAIN_LABEL_SECTION = {
+  'AMP1':  {key:'Amp1',       onOffOff:0},
+  'AMP2':  {key:'Amp2',       onOffOff:0},
+  'CHORUS':{key:'Chorus',     onOffOff:0},
+  'COMP':  {key:'Compressor', onOffOff:0},
+  'DIST':  {key:'Distortion', onOffOff:0},
+  'EQ1':   {key:'EQ1',        onOffOff:0},
+  'EQ2':   {key:'EQ2',        onOffOff:0},
+  'DLY1':  {key:'Delay1',     onOffOff:0},
+  'DLY2':  {key:'Delay2',     onOffOff:0},
+  'REVERB':{key:'Reverb',     onOffOff:0},
+  'NS1':   {key:'NS1',        onOffOff:0},
+  'NS2':   {key:'NS2',        onOffOff:0},
+  'FV1':   {key:'FV1',        onOffOff:-1},
+  'FV2':   {key:'FV2',        onOffOff:-1},
+  'S/R1':  {key:'SendReturn', onOffOff:1},
+};
+
+let selectedChainBlock = null; // {name, fxSlot} or null
+
+function getChainBlockOnOff(name) {
+  if (name === 'FX1' || name === 'FX2' || name === 'FX3') {
+    const slot = ['FX1','FX2','FX3'].indexOf(name);
+    const fcOffs = [MG.FxCommon1, MG.FxCommon2, MG.FxCommon3];
+    const fcAddr = blockAddr(BASE_TEMP_GUITAR, fcOffs[slot]);
+    const d = blockCache.get(addrKey(fcAddr));
+    return d ? d[0] !== 0 : null;
+  }
+  const info = CHAIN_LABEL_SECTION[name];
+  if (!info || info.onOffOff < 0) return null;
+  const sec = SECTIONS[info.key];
+  if (!sec) return null;
+  const d = blockCache.get(addrKey(blockAddr(sec.base, sec.off)));
+  return d ? d[info.onOffOff] !== 0 : null;
+}
+
+async function showChainBlockParams(name) {
+  const el = document.getElementById('chain-selected-params');
+  el.innerHTML = '';
+  if (!name) return;
+
+  if (name === 'FX1' || name === 'FX2' || name === 'FX3') {
+    const slot = ['FX1','FX2','FX3'].indexOf(name);
+    const fcOff = [MG.FxCommon1, MG.FxCommon2, MG.FxCommon3][slot];
+    const fcAddr = blockAddr(BASE_TEMP_GUITAR, fcOff);
+    const fcKey  = addrKey(fcAddr);
+    el.innerHTML =
+      `<div class="params-header">${name} <button class="read-btn" style="margin-left:8px" onclick="showChainBlockParams('${name}')">↺ reload</button></div>` +
+      `<div class="params-grid narrow" id="chain-sel-fc"></div>` +
+      `<div class="params-grid narrow" id="chain-sel-eff"></div>`;
+    try {
+      if (!blockCache.has(fcKey)) {
+        const d = await readBlock(fcAddr, BLOCKS.FxCommon.size);
+        blockCache.set(fcKey, d);
+      }
+      renderBlockParams('chain-sel-fc', 'FxSlot'+slot+'Common', BASE_TEMP_GUITAR, fcOff, 'FxCommon', blockCache.get(fcKey));
+
+      // ON/OFF toggle → refresh chain visual dimming immediately
+      const fcEl = document.getElementById('chain-sel-fc');
+      fcEl.querySelector('.toggle-btn')?.addEventListener('click', () => setTimeout(updateChainVisual, 50));
+
+      // FX TYPE select → auto-reload effect params after write settles
+      fcEl.querySelector('select')?.addEventListener('change', () => setTimeout(() => showChainBlockParams(name), 300));
+
+      await readFxSlot(slot, 'chain-sel-eff');
+    } catch(e) {
+      document.getElementById('chain-sel-eff').innerHTML = `<div class="error-msg">${e.message}</div>`;
+    }
+    return;
+  }
+  const info = CHAIN_LABEL_SECTION[name];
+  if (!info) { el.innerHTML = '<div class="params-header">' + name + ' — no editable params</div>'; return; }
+  const sec = SECTIONS[info.key];
+  if (!sec) { el.innerHTML = '<div class="params-header">' + name + ' — section not found</div>'; return; }
+
+  el.innerHTML = '<div class="params-header">' + name + '</div><div class="params-grid narrow" id="chain-sel-params-inner"></div>';
+  const addr = blockAddr(sec.base, sec.off);
+  const key  = addrKey(addr);
+  const hookOnOff = () => {
+    document.getElementById('chain-sel-params-inner')?.querySelector('.toggle-btn')
+      ?.addEventListener('click', () => setTimeout(updateChainVisual, 50));
+  };
+  if (!blockCache.has(key)) {
+    el.querySelector('#chain-sel-params-inner').innerHTML = '<div class="loading-msg">Reading...</div>';
+    await readBlock(addr, BLOCKS[sec.block].size).then(data => {
+      blockCache.set(key, data);
+      renderBlockParams('chain-sel-params-inner', info.key, sec.base, sec.off, sec.block, data);
+      hookOnOff();
+    }).catch(() => {
+      el.querySelector('#chain-sel-params-inner').innerHTML = '<div class="error-msg">Read failed</div>';
+    });
+  } else {
+    renderBlockParams('chain-sel-params-inner', info.key, sec.base, sec.off, sec.block, blockCache.get(key));
+    hookOnOff();
+  }
+}
+
+const CHAIN_LABELS = [
+  'FX1','FX2','FX3','AMP1','AMP2','CHORUS','COMP','DIST',
+  'EQ1','EQ2','DLY1','DLY2','REVERB','NS1','NS2',
+  'FV1','FV2','S/R1','S/R2',
+  '2ND ROW','BALANCER1','3RD ROW','BALANCER2','DIVIDER','SPLIT','MIXER'
+];
+const CHAIN_NAME_TO_VAL = Object.fromEntries(CHAIN_LABELS.map((l,i)=>[l,i]));
+let chainDragIdx = null;
+
+function writeChainNames(names) {
+  const sec = SECTIONS['Chain'];
+  const addr = blockAddr(sec.base, sec.off);
+  const bytes = names.map(n => CHAIN_NAME_TO_VAL[n] ?? 0);
+  send(buildDT1(addr, bytes));
+  markDirty();
+  const key = addrKey(addr);
+  const cached = blockCache.get(key);
+  if (cached) bytes.forEach((v,i) => { if (i < cached.length) cached[i] = v; });
+}
+
+function updateChainVisual() {
+  const sec = SECTIONS['Chain'];
+  const addr = blockAddr(sec.base, sec.off);
+  const key = addrKey(addr);
+  const data = blockCache.get(key);
+  if (!data) return;
+
+  const vis = document.getElementById('chain-visual');
+  vis.innerHTML = '';
+
+  // Decode all 26 slots to {name, idx} objects
+  const elems = [];
+  for (let i = 0; i < 26; i++) elems.push({name: CHAIN_LABELS[data[i]] || '?', idx: i});
+
+  // State-machine parse into sections
+  const inB = [], inC = [], pre = [], procB = [], procC = [], post = [];
+  let state = 'inB';
+  for (const e of elems) {
+    const n = e.name;
+    if      (n === '2ND ROW')   { state = 'inB'; }
+    else if (n === 'BALANCER1') { state = 'inC_wait'; }
+    else if (n === '3RD ROW')   { state = 'inC'; }
+    else if (n === 'BALANCER2') { state = 'pre'; }
+    else if (n === 'DIVIDER')   { pre.push(e); state = 'procB'; }
+    else if (n === 'SPLIT')     { state = 'procC'; }
+    else if (n === 'MIXER')     { post.push(e); state = 'post'; }
+    else if (state === 'inB')    inB.push(e);
+    else if (state === 'inC')    inC.push(e);
+    else if (state === 'pre')    pre.push(e);
+    else if (state === 'procB')  procB.push(e);
+    else if (state === 'procC')  procC.push(e);
+    else if (state === 'post')   post.push(e);
+  }
+
+  const hasInput    = inB.length > 0 || inC.length > 0;
+  const hasParallel = procB.length > 0 || procC.length > 0;
+
+  function clearDragOver() {
+    vis.querySelectorAll('.drag-over-left,.drag-over-right').forEach(el =>
+      el.classList.remove('drag-over-left','drag-over-right'));
+  }
+
+  function makeBlock(e) {
+    const b = document.createElement('span');
+    b.className = 'chain-block';
+    b.textContent = e.name;
+    if (e.name === 'DIVIDER' || e.name === 'SPLIT') b.classList.add('chain-split');
+    else if (e.name === 'BALANCER1' || e.name === 'BALANCER2') b.classList.add('chain-merge');
+    else if (e.name === 'MIXER') b.classList.add('chain-mixer');
+
+    // On/off dimming
+    const onOff = getChainBlockOnOff(e.name);
+    if (onOff === false) b.classList.add('chain-off');
+
+    // Selected highlight
+    if (selectedChainBlock === e.name) b.classList.add('chain-selected');
+
+    // Click to select
+    if (CHAIN_LABEL_SECTION[e.name] || e.name === 'FX1' || e.name === 'FX2' || e.name === 'FX3') {
+      b.style.cursor = 'pointer';
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        selectedChainBlock = (selectedChainBlock === e.name) ? null : e.name;
+        updateChainVisual();
+        showChainBlockParams(selectedChainBlock);
+      });
+    }
+
+    if (e.idx < 0) return b; // placeholder (direct), not draggable
+
+    b.draggable = true;
+    b.dataset.flatIdx = e.idx;
+
+    b.addEventListener('dragstart', ev => {
+      chainDragIdx = e.idx;
+      b.classList.add('drag-src');
+      ev.dataTransfer.effectAllowed = 'move';
+    });
+    b.addEventListener('dragend', () => { b.classList.remove('drag-src'); clearDragOver(); });
+    b.addEventListener('dragover', ev => {
+      if (chainDragIdx === null) return;
+      ev.preventDefault();
+      clearDragOver();
+      const r = b.getBoundingClientRect();
+      b.classList.add(ev.clientX < r.left + r.width / 2 ? 'drag-over-left' : 'drag-over-right');
+    });
+    b.addEventListener('drop', ev => {
+      ev.preventDefault();
+      clearDragOver();
+      if (chainDragIdx === null || chainDragIdx === e.idx) return;
+      const r = b.getBoundingClientRect();
+      const before = ev.clientX < r.left + r.width / 2;
+      const names = elems.map(x => x.name);
+      const [moved] = names.splice(chainDragIdx, 1);
+      let to = e.idx > chainDragIdx ? e.idx - 1 : e.idx;
+      if (!before) to = Math.min(to + 1, names.length);
+      names.splice(to, 0, moved);
+      chainDragIdx = null;
+      writeChainNames(names);
+      updateChainVisual();
+    });
+    return b;
+  }
+
+  function renderRow(label, items) {
+    if (items.length === 0) return;
+    const div = document.createElement('div');
+    div.className = 'chain-row';
+    if (label) {
+      const l = document.createElement('span');
+      l.className = 'chain-row-label'; l.textContent = label;
+      div.appendChild(l);
+    }
+    items.forEach((e, i) => {
+      if (i > 0) { const a = document.createElement('span'); a.className = 'chain-arrow'; a.textContent = '→'; div.appendChild(a); }
+      div.appendChild(makeBlock(e));
+    });
+    vis.appendChild(div);
+  }
+
+  if (hasInput) {
+    renderRow('in B→BAL1:', inB.length ? inB : [{name:'(direct)', idx:-1}]);
+    renderRow('in C→BAL2:', inC.length ? inC : [{name:'(direct)', idx:-1}]);
+  }
+  renderRow(hasParallel ? 'A:' : '', pre);
+  renderRow('B:', procB);
+  renderRow('C:', procC);
+  renderRow(hasParallel ? 'A:' : '', post);
+}
+
+// ============================================================
+// MEMORY BROWSER
+// ============================================================
+async function savePatch() {
+  const defaultSlot = currentMemorySlot !== null ? String(currentMemorySlot + 1) : '';
+  const raw = prompt('Save current patch to memory slot (1-150):', defaultSlot);
+  if (!raw) return;
+  const slotIdx = parseInt(raw.trim()) - 1;
+  if (isNaN(slotIdx) || slotIdx < 0 || slotIdx > 149) {
+    alert('Invalid slot. Enter a number from 1 to 150.');
+    return;
+  }
+
+  const tempBase28  = to28(BASE_TEMP_GUITAR);
+  const userBase28  = to28(BASE_USER_GUITAR1) + slotIdx * USER_GUITAR_STEP;
+  const patchSize28 = USER_GUITAR_STEP;
+
+  // Gather all cached blocks that fall within the temp buffer address window
+  const blocks = [];
+  for (const [key, data] of blockCache.entries()) {
+    const bytes = [parseInt(key.slice(0,2),16), parseInt(key.slice(2,4),16),
+                   parseInt(key.slice(4,6),16), parseInt(key.slice(6,8),16)];
+    const addr28 = to28(bytes);
+    const offset28 = addr28 - tempBase28;
+    if (offset28 < 0 || offset28 >= patchSize28) continue;
+    blocks.push({ offset28, data: [...data] });
+  }
+
+  if (blocks.length === 0) {
+    alert('Nothing cached to save — use "Read Patch" first.');
+    return;
+  }
+
+  if (!confirm(`Write ${blocks.length} cached blocks to memory slot ${slotIdx + 1}?`)) return;
+
+  for (const {offset28, data} of blocks) {
+    const targetAddr = from28(userBase28 + offset28);
+    send(buildDT1(targetAddr, data));
+    await sleep(30);
+  }
+
+  currentMemorySlot = slotIdx;
+  document.getElementById('current-slot-label').textContent = `Slot ${slotIdx + 1}`;
+  document.querySelectorAll('.memory-btn').forEach((b, i) => b.classList.toggle('current', i === slotIdx));
+  log('info', `Saved ${blocks.length} blocks to memory slot ${slotIdx + 1}`);
+  setStatus('connected', `Saved to slot ${slotIdx + 1}`);
+  markClean();
+}
+
+async function readMemoryList() {
+  const grid = document.getElementById('memory-grid');
+  grid.innerHTML = '<div class="loading-msg">Reading memories...</div>';
+
+  const masterOff = MG.Master;
+  const memories = [];
+
+  for (let i = 0; i < 150; i++) {
+    const baseAddr = from28(to28(BASE_USER_GUITAR1) + i * USER_GUITAR_STEP);
+    const addr = blockAddr(baseAddr, masterOff);
+    try {
+      const data = await readBlock(addr, 16);
+      let name = '';
+      for (let j = 0; j < 16; j++) name += String.fromCharCode(data[j] || 32);
+      memories.push({i, name: name.trim()});
+    } catch(e) {
+      memories.push({i, name: '??'});
+    }
+    if (i % 10 === 9) await sleep(10);
+  }
+
+  grid.innerHTML = '';
+  memories.forEach(({i, name}) => {
+    const btn = document.createElement('button');
+    btn.className = 'memory-btn';
+    btn.title = `Memory ${i+1}: ${name}`;
+    btn.textContent = `${i+1}: ${name || '(empty)'}`;
+    btn.onclick = () => recallMemory(i);
+    grid.appendChild(btn);
+  });
+}
+
+function recallMemory(index) {
+  // Guitar: bank 0 = memories 1-128, bank 1 = memories 129-150
+  const bank = Math.floor(index / 128);
+  const program = index % 128;
+  const ch = midiChannel;
+  if (!midiOutput) { log('err', 'No MIDI output selected'); return; }
+  midiOutput.send([0xB0 | ch, 0x00, bank]); // Bank Select MSB
+  midiOutput.send([0xB0 | ch, 0x20, 0x00]); // Bank Select LSB
+  midiOutput.send([0xC0 | ch, program]);     // Program Change
+  log('tx', `PC: bank=${bank} prog=${program} ch=${ch+1} → memory ${index+1}`);
+  // Flush cache — patch changed on device
+  blockCache.clear();
+  currentMemorySlot = index;
+  document.querySelectorAll('.memory-btn').forEach((b, i) => {
+    b.classList.toggle('current', i === index);
+  });
+  const slotName = document.querySelector(`.memory-btn:nth-child(${index+1})`)?.textContent || `Slot ${index+1}`;
+  document.getElementById('current-slot-label').textContent = `Slot ${index+1}`;
+  document.getElementById('patch-name-header').textContent = '';
+  markClean();
+}
+
+// ============================================================
+// IDENTITY REQUEST
+// ============================================================
+function sendIdentity() {
+  const devId = parseInt(document.getElementById('device-id').value);
+  deviceId = devId;
+  send([0xF0, 0x7E, devId, 0x06, 0x01, 0xF7]);
+  log('info', 'Sent identity request');
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function setStatus(cls, text) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  dot.className = cls ? 'connected' : (cls === 'error' ? 'error' : '');
+  if (cls === 'connected') dot.className = 'connected';
+  else if (cls === 'error') dot.className = 'error';
+  else dot.className = '';
+  txt.textContent = text;
+}
+
+function toggleSection(header) {
+  header.parentElement.classList.toggle('collapsed');
+  header.querySelector('.collapse-icon').textContent =
+    header.parentElement.classList.contains('collapsed') ? '▶' : '▼';
+}
+
+function toggleLog() {
+  const log = document.getElementById('log');
+  log.classList.toggle('visible');
+}
+
+let logLines = [];
+function log(type, text) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.className = 'log-' + type;
+  const time = new Date().toTimeString().slice(0,8);
+  line.textContent = `${time} ${text}`;
+  el.appendChild(line);
+  while (el.children.length > 200) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+function fmtBytes(arr) {
+  if (!arr) return '';
+  const hex = Array.from(arr).map(b=>b.toString(16).padStart(2,'0').toUpperCase());
+  if (hex.length > 24) return hex.slice(0,12).join(' ') + ' ... ' + hex.slice(-4).join(' ') + ` (${hex.length}B)`;
+  return hex.join(' ');
+}
+
+// Tab switching
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  // Wire up tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => switchTab(btn.dataset.tab);
+  });
+
+  // Wire up controls
+  document.getElementById('sel-in').onchange = e => selectInput(e.target.value);
+  document.getElementById('sel-out').onchange = e => selectOutput(e.target.value);
+  document.getElementById('device-id').onchange = e => { deviceId = parseInt(e.target.value); };
+  document.getElementById('midi-ch').onchange = e => { midiChannel = parseInt(e.target.value) - 1; };
+  document.getElementById('btn-identity').onclick = sendIdentity;
+  document.getElementById('btn-write-name').onclick = writePatchName;
+  document.getElementById('btn-read-inst').onclick = async () => {
+    await readSection('InstCommon');
+    await readSection('EGuitar');
+  };
+
+  // Init FX type selectors
+  initFxTypeSelectors();
+  initInstTab();
+
+  // MIDI init
+  if (navigator.requestMIDIAccess) {
+    initMidi();
+  } else {
+    setStatus('error', 'WebMIDI not supported');
+    document.getElementById('status-text').textContent = 'WebMIDI not supported. Use Chrome/Edge.';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
